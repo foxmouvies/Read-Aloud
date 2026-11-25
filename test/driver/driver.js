@@ -81,6 +81,19 @@
     out.gatedStatus = await waitStatus("No English");
     out.stateAfterGate = await stateOf();
 
+    // Phase A2: the real popup's Language control set to French (France) with the
+    // French voice listed: reading starts in French (manual choice, not detected).
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => {
+      // Stand-in voice objects are plain objects: utterances are plain objects and speak() is a no-op.
+      window.SpeechSynthesisUtterance = function (t) { this.text = t; };
+      window.speechSynthesis.speak = function () {};
+    } });
+    doc.getElementById("lang").value = "fr-FR";
+    click("read-page");
+    out.frenchManualStatus = await waitStatus("French (France)");
+    click("stop"); await new Promise((r) => setTimeout(r, 500));
+    doc.getElementById("lang").value = "auto";
+
     // Phase B: an English (United States) online voice is listed; online
     // voices need no opt-in now. Read through the real popup button.
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => {
