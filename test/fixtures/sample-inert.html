@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><head><title>Hidden title text</title>
+<meta http-equiv="refresh" content="0;url=http://127.0.0.1:__PORT__/meta-refresh">
+<link rel="stylesheet" href="http://127.0.0.1:__PORT__/style.css">
+<style>.x{background:url(http://127.0.0.1:__PORT__/css-bg.png)}</style>
+<script>window.__pwned = true; fetch("http://127.0.0.1:__PORT__/script-beacon");</script>
+</head><body onload="window.__pwned = true; fetch('http://127.0.0.1:__PORT__/onload-beacon')">
+<nav>Navigation menu text that must not be read.</nav>
+<main>
+<h1>Harbour Lights Festival</h1>
+<p>The festival opens on Friday with a lantern parade along the harbour. Thousands of visitors are expected to attend the opening night.</p>
+<p onclick="window.__pwned = true">Organisers say the second day will feature local musicians and a food market. Entry is free for children under twelve.</p>
+<img src="http://127.0.0.1:__PORT__/tracker.png" onerror="window.__pwned = true; fetch('http://127.0.0.1:__PORT__/onerror-beacon')">
+<iframe src="http://127.0.0.1:__PORT__/frame.html"></iframe>
+<object data="http://127.0.0.1:__PORT__/object.swf"></object>
+<p style="display:none">Secret hidden text that must not be read.</p>
+<p hidden>Another hidden paragraph that must not be read.</p>
+<svg><text>Vector label that must not be read.</text></svg>
+<a href="javascript:window.__pwned=true">Read the full programme online.</a>
+<p>A shuttle bus will run every ten minutes from the central station until midnight.</p>
+</main>
+<footer>Footer legal text that must not be read.</footer>
+</body></html>
