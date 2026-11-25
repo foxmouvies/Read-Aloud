@@ -107,13 +107,17 @@
         return;
       }
       injectReader(tab.id).then(function () {
-        return chrome.tabs.sendMessage(tab.id, { type: type, rate: currentRate() });
+        return chrome.tabs.sendMessage(tab.id, { type: type, rate: currentRate(), lang: document.getElementById("lang").value });
       }).then(function (resp) {
         if (!resp) {
           setStatus("No response from the page. Try reloading the tab.", true);
         } else if (resp.ok) {
-          setStatus("Reading " + resp.sentences + " sentences.");
-        } else if (resp.reason === "no-local-voice") {
+          setStatus("Reading " + resp.sentences + " sentences" + (resp.langLabel ? " in " + resp.langLabel + (resp.detected ? " (detected)" : "") : "") + ".");
+        } else if (resp.lang && resp.lang !== "en-US" && (resp.reason === "no-lang-voice" || resp.reason === "no-local-voice")) {
+          setStatus(resp.onlineCount > 0
+            ? "Only online voices are available for " + resp.langLabel + ", and none is chosen yet, so nothing was read. Open the PDF/text reader and choose a voice there first."
+            : "No voice for " + resp.langLabel + (resp.detected ? " (detected from the text)" : "") + " is available, so nothing was read and no other voice was used. Installed voice languages: " + (resp.installed || "none") + ". Add a voice in your system speech settings or choose another language here.", true);
+        } else if (resp.reason === "no-local-voice" || resp.reason === "no-lang-voice") {
           setStatus(resp.onlineCount > 0
             ? "Only online English (United States) voices are available, and none is chosen yet, so the page was not read. Open the PDF/text reader and choose a voice there first."
             : "No English (United States) voice is available, so the page was not read. Open the PDF/text reader, choose a voice there, or add an English voice in your system speech settings.", true);
