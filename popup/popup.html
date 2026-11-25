@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ReadAloud</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <h1>ReadAloud</h1>
+  </header>
+
+  <section class="group">
+    <button id="read-page" class="primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.6 5.4a9 9 0 0 1 0 13.2"/></svg> Read this page</button>
+    <button id="read-selection">Read selected text</button>
+  </section>
+
+  <section class="group">
+    <button id="open-reader" class="primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Open PDF / text reader</button>
+  </section>
+
+  <section class="group playback">
+    <div class="row">
+      <button id="pause">⏸ Pause</button>
+      <button id="resume">▶ Resume</button>
+      <button id="stop">⏹ Stop</button>
+    </div>
+    <label class="rate">
+      Speed <span id="rate-value">1.0×</span>
+      <input id="rate" type="range" min="0.5" max="2" step="0.1" value="1">
+    </label>
+  </section>
+
+  <section class="group">
+    <button id="clear-data" title="Delete saved voice, speed, pitch and reading positions from this device">Clear saved data</button>
+  </section>
+
+  <p id="status" role="status"></p>
+
+  <script src="../shared/store.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

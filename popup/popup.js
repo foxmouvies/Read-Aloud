@@ -1,0 +1,141 @@
+/* ReadAloud popup: injects the reader into the active tab and relays controls. */
+(function () {
+  "use strict";
+
+  var INJECT_FILES = ["/shared/store.js", "/shared/text.js", "/shared/tts-engine.js", "/content/read-page.js"];
+
+  var statusEl = document.getElementById("status");
+  var rateInput = document.getElementById("rate");
+  var rateValue = document.getElementById("rate-value");
+
+  function setStatus(text, isError) {
+    statusEl.textContent = text || "";
+    statusEl.className = isError ? "error" : "";
+  }
+
+  function currentRate() {
+    return parseFloat(rateInput.value);
+  }
+
+  rateInput.addEventListener("input", function () {
+    rateValue.textContent = currentRate().toFixed(1) + "×";
+    sendToTab({ type: "SET_RATE", rate: currentRate() });
+    RAStore.saveSettings({ rate: currentRate() });
+  });
+
+  RAStore.loadSettings(function (s) {
+    if (s.rate !== null) {
+      rateInput.value = String(s.rate);
+      rateValue.textContent = s.rate.toFixed(1) + "×";
+    }
+  });
+
+  document.getElementById("clear-data").addEventListener("click", function () {
+    RAStore.clearAll(function () {
+      setStatus("Saved settings and reading positions cleared.");
+    });
+  });
+
+  function withActiveTab(fn) {
+    chrome.tabs.query({ active: true, currentWindow: true }).then(function (tabs) {
+      if (!tabs || !tabs.length) {
+        setStatus("No active tab found.", true);
+        return;
+      }
+      fn(tabs[0]);
+    }).catch(function (e) {
+      setStatus("Error: " + e.message, true);
+    });
+  }
+
+  // Installs a function-injected message dispatcher that delegates to the
+  // reader's handler. Firefox does not deliver runtime messages to listeners
+  // registered by file-injected scripts (root cause unknown; reproduced on
+  // ESR 153.8 and Developer 162.0b1), while function-injected listeners do
+  // receive them. The dispatcher is idempotent: repeat clicks never stack
+  // listeners. The reader's own listener defers to it (see read-page.js), so
+  // Chromium/Brave handle each message exactly once.
+  function installDispatcher(tabId) {
+    return chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      func: function () {
+        if (window.__readAloudDispatcher) return;
+        window.__readAloudDispatcher = true;
+        chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+          if (typeof window.__readAloudMessage === "function") {
+            window.__readAloudMessage(msg).then(function (r) { sendResponse(r); }, function () { sendResponse(undefined); });
+            return true;
+          }
+          return undefined;
+        });
+      }
+    }).catch(function () { /* restricted page; files path still reports errors */ });
+  }
+
+  function injectReader(tabId) {
+    return installDispatcher(tabId).then(function () {
+      return chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: INJECT_FILES
+      });
+    });
+  }
+
+  function sendToTab(msg) {
+    withActiveTab(function (tab) {
+      chrome.tabs.sendMessage(tab.id, msg).catch(function () { /* no reader active; ignore */ });
+    });
+  }
+
+  // B4: reflect live playback state when the popup is (re)opened.
+  withActiveTab(function (tab) {
+    chrome.tabs.sendMessage(tab.id, { type: "STATE" }).then(function (st) {
+      if (st && st.total && st.state !== "idle") {
+        setStatus("Reading sentence " + (st.index + 1) + " of " + st.total + " — " + st.state + ".");
+      }
+    }).catch(function () { /* no reader on this tab */ });
+  });
+
+  function readAloud(type) {
+    withActiveTab(function (tab) {
+      if (!/^https?:|^file:/.test(tab.url || "")) {
+        setStatus("This tab cannot be read (browser-internal page). Open the PDF/text reader instead.", true);
+        return;
+      }
+      if (/^file:/.test(tab.url || "")) {
+        setStatus("Local files need 'Allow access to file URLs' in the extension details — or use the PDF / text reader below.", true);
+        return;
+      }
+      injectReader(tab.id).then(function () {
+        return chrome.tabs.sendMessage(tab.id, { type: type, rate: currentRate() });
+      }).then(function (resp) {
+        if (!resp) {
+          setStatus("No response from the page. Try reloading the tab.", true);
+        } else if (resp.ok) {
+          setStatus("Reading " + resp.sentences + " sentences.");
+        } else if (resp.reason === "no-local-voice") {
+          setStatus("No local voice is installed, so the page was not read. Open the PDF/text reader to allow online voices (spoken text is sent to the voice provider) or install a system voice.", true);
+        } else if (resp.reason === "no-selection") {
+          setStatus("Select some text on the page first.", true);
+        } else if (resp.reason === "no-text") {
+          setStatus("No readable text found on this page.", true);
+        } else {
+          setStatus("Could not start reading on this page.", true);
+        }
+      }).catch(function (e) {
+        setStatus("Cannot access this page: " + e.message, true);
+      });
+    });
+  }
+
+  document.getElementById("read-page").addEventListener("click", function () { readAloud("READ_PAGE"); });
+  document.getElementById("read-selection").addEventListener("click", function () { readAloud("READ_SELECTION"); });
+  document.getElementById("pause").addEventListener("click", function () { sendToTab({ type: "PAUSE" }); });
+  document.getElementById("resume").addEventListener("click", function () { sendToTab({ type: "RESUME" }); });
+  document.getElementById("stop").addEventListener("click", function () { sendToTab({ type: "STOP" }); setStatus("Stopped."); });
+
+  document.getElementById("open-reader").addEventListener("click", function () {
+    chrome.tabs.create({ url: chrome.runtime.getURL("reader/reader.html") });
+    window.close();
+  });
+})();
