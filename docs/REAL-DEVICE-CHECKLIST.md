@@ -17,7 +17,7 @@ automation; this is a short confirmation pass, about 5 minutes per browser.
    it shows live progress ("Reading sentence N of M").
 4. Voice privacy: if the machine has normal system voices, reading just works
    with no online-voice prompt. If it has none, playback pauses with an
-   explanation and an "Allow online voices" choice.
+   explanation (no English (United States) voice available).
 5. Resume: stop after a few sentences, reload the page, click "Read page"
    again. Expected: reading resumes near where it stopped.
 6. Reader page: open the reader, load a PDF or .txt, press Play (audible).

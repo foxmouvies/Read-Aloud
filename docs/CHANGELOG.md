@@ -1,3 +1,80 @@
+## 1.0.18 (2026-11-25) - Language control, online voices, recognition engine shutdown timing
+
+- Reported problem: an English file was read with a French accent. Cause: the
+  voice was the first installed local voice, whatever its language, and the
+  utterance language was never set. Fix: the reader has a Language control next
+  to Stop. English (United States) is the default; "English (all regions)" is
+  the other choice; Arabic and French are listed as coming later. The voice
+  list shows only voices of the chosen language. The program never picks a
+  language from the document and never falls back to a voice of another
+  language. With no voice for the chosen language, playback pauses with a
+  message. The language choice is not stored.
+- Online voices are listed automatically with local ones, labelled "online".
+  The Allow/Disallow online voices buttons are removed. Selecting an online
+  voice shows that spoken text is sent to the browser or system voice provider.
+  The default pick is the first local voice in the language. If only online
+  voices exist and the user has not chosen one, none is selected: the list shows
+  "Choose a voice", Play (and page reading from the popup) is blocked with an
+  explanation until the user picks one. A voice the user picked is kept.
+- Connection loss: with an online voice in use, reading pauses and the page
+  says so; on reconnect the voice list is refreshed (now, +1 s, +3 s) and
+  nothing is restarted or switched. A chosen online voice missing from the
+  list is not replaced: the list shows "Selected voice unavailable" and Play is
+  blocked until it returns or another voice is chosen. A voice error keeps the
+  position. Limits: the browser and OS decide which voices exist and how an
+  online voice fails offline; the page cannot see the provider.
+- Page reading from the popup: uses the voice picked in the reader, else
+  English (United States) only; clear messages when none is available.
+- Tests: voice-choice unit tests rewritten (8 cases, 99 total pass);
+  test/voices-reconnect-chromium.js (simulated voices, real offline emulation);
+  Firefox e2e checks the language list and real playback; popup flow test
+  updated (stand-in voices, adapted transport).
+
+- Cancel or a newer file now ends the scanned-page recognition engine 250 ms
+  later instead of in the same instant, and the interface does not wait for it.
+  Cost: a cancelled engine stays alive about 250 ms after Cancel (no new
+  recognition starts in that time; one already running may finish).
+- If Cancel or a newer file arrives while the engine is still starting, the
+  engine is discarded when it finishes starting. Before, it stayed alive until
+  the next load (found by code reading, then covered by test).
+- Why: in a direct test in Firefox ESR 153.8, ending the engine in the first
+  milliseconds of a recognition gave the unhandled rejection in 8 of 8
+  attempts; 20 ms or later 0 of 2; after a 250 ms delay 0 of 6.
+- Status: this is a mitigation. Absence of the console rejection in later runs
+  is not proof the race is eliminated. See PROJECT_STATUS for run counts.
+- New test: test/ff-cancel-resources.js (engine create/end/recognise counters).
+
+## 1.0.17 (2026-11-25) - Scanned-page sentence boundaries; cancel guard
+
+- On a scanned page, an Arabic line without final punctuation followed by an
+  English line (or the reverse) is now two sentences instead of one. Lines
+  with punctuation, wrapped lines in one script and mixed-script lines are
+  unchanged.
+- Scanned-page recognition checks for Cancel or a newer file before each of its
+  internal recognition steps, and a superseded load no longer shuts down the
+  recognition engine that a newer load is using.
+- Known open issue: in Firefox ESR 153.8, cancel and replacement races on
+  scanned files sometimes log one unhandled promise rejection from the bundled
+  recognition engine ("postMessage ... is null") to the page console. It also
+  occurs in v1.0.15. All functional checks still pass in those runs. Source
+  located inside the engine's job chain; not fixed. Chromium and Brave: none seen.
+- New tests: test/firefox-robustness.js (Firefox, document-state checks),
+  test/firefox-ocr-measure.js, test/stress-scans-e2e.js.
+
+## 1.0.16 (2026-11-25) - Scanned-page layout: columns and sideways pages
+
+- Scanned pages with two or more text columns are now recognised column by
+  column, so lines of neighbouring columns are no longer read across. Right to
+  left pages read their columns from the right. Pages whose layout is unclear
+  (for example a heading spanning the columns) are read as before.
+- A page scanned sideways or upside down is detected when its recognised text
+  does not look like words; the other orientations are tried and one is kept
+  only if clearly more word-like. Normal pages are not retried.
+- New test/stress-scans-e2e.js with a SYNTHETIC fixture (generated images, not
+  real scans). Known limits: an Arabic line without final punctuation can merge
+  with the next English line into one sentence, and the recognition engine can
+  misread single letters (for example a hamza).
+
 ## 1.0.15 (2026-11-25) - Sentence splitting fixes (Arabic titles, lowercase continuations)
 
 - Arabic titles "د." and "أ.د." no longer end a sentence when an Arabic name
