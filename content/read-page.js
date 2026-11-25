@@ -226,7 +226,18 @@
 
   var lastPosSave = 0;
 
-  function startReading(text, rate, cb) {
+  var LANG_LABELS = { "en-US": "English (United States)", "ar-MA": "Arabic (Morocco)", "fr-FR": "French (France)" };
+  var DETECTED = { en: "en-US", ar: "ar-MA", fr: "fr-FR" };
+  // Language for this reading: the popup's explicit choice, or detected from
+  // the text when the popup says "auto". No message language means English
+  // (United States), as before. Detection happens only when reading starts.
+  function resolveLang(text, requested) {
+    if (requested === "auto") return { lang: DETECTED[window.RAText.detectLanguage(text, 0.5)] || "en-US", detected: true };
+    return { lang: LANG_LABELS[requested] ? requested : "en-US", detected: false };
+  }
+
+  function startReading(text, rate, cb, requestedLang) {
+    var pick = resolveLang(text, requestedLang);
     var sentences = window.RAText.splitIntoSentences(text);
     if (!sentences.length) { cb({ ok: false, reason: "no-text" }); return; }
     if (!engine) {
@@ -260,7 +271,7 @@
       function playAt(i) {
         var ok = engine.play(i);
         if (ok) ensureControlBar().update(engine.getState());
-        cb({ ok: ok, sentences: sentences.length });
+        cb({ ok: ok, sentences: sentences.length, lang: pick.lang, langLabel: LANG_LABELS[pick.lang], detected: pick.detected });
       }
       // Resume where this page was last read (origin+path key, no query).
       // Look the position up BEFORE playing so a resumed read never blips
@@ -289,16 +300,22 @@
         var picked = null;
         if (s.voiceURI) {
           for (var i = 0; i < voices.length; i++) if (voices[i].voiceURI === s.voiceURI) picked = voices[i];
-          if (!picked && voices.length) {
+          // A chosen voice that is missing is not replaced silently (English reading keeps this rule).
+          if (!picked && voices.length && pick.lang === "en-US") {
             cb({ ok: false, reason: "voice-unavailable", onlineCount: 0 });
             return;
           }
+          // A saved voice of another language is not used for this language.
+          if (picked && !RATTS.voiceMatches(picked, pick.lang)) picked = null;
         }
-        var choice = picked ? { voice: picked } : RATTS.chooseVoice(voices, null, "en-US");
+        var choice = picked ? { voice: picked } : RATTS.chooseVoice(voices, null, pick.lang);
         if (!choice.voice && voices.length) {
-          cb({ ok: false, reason: "no-local-voice", onlineCount: choice.onlineCount || 0 });
+          var have = {}; voices.forEach(function (v) { have[v.lang] = 1; });
+          cb({ ok: false, reason: choice.noLangVoice ? "no-lang-voice" : "no-local-voice", onlineCount: choice.onlineCount || 0,
+               lang: pick.lang, langLabel: LANG_LABELS[pick.lang], detected: pick.detected, installed: Object.keys(have).sort().join(", ") });
           return;
         }
+        engine.setLang(pick.lang);
         if (choice.voice) engine.setVoice(choice.voice);
         begin();
       });
@@ -314,7 +331,7 @@
     switch (msg.type) {
       case "READ_PAGE": {
         var text = extractPageText();
-        startReading(text, msg.rate, sendResponse);
+        startReading(text, msg.rate, sendResponse, msg.lang);
         break;
       }
       case "READ_SELECTION": {
@@ -322,7 +339,7 @@
         if (!sel || sel.trim().length < 2) {
           sendResponse({ ok: false, reason: "no-selection" });
         } else {
-          startReading(sel, msg.rate, sendResponse);
+          startReading(sel, msg.rate, sendResponse, msg.lang);
         }
         break;
       }
