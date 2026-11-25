@@ -1,3 +1,18 @@
+## 1.0.20 (2026-11-25) - Language control in the toolbar popup
+
+- The popup now has a Language control (Detect from the text, English (United
+  States), Arabic (Morocco), French (France)) used by "Read this page" and "Read
+  selected text". With "Detect from the text" the language comes from the text
+  being read (same detector as the reader; Arabic needs a majority of Arabic
+  letters), at the moment reading starts, never during speech. A language chosen
+  by hand is always used. Voices match the region exactly; with no matching voice
+  nothing is read, no other voice is used, and the popup names the language and
+  lists the installed voice languages. A voice picked in the reader is used only
+  if it speaks the language being read. The choice is not stored. Callers that
+  send no language keep English (United States).
+- Checked with message-protocol tests in Chromium and Brave and the real popup
+  (in an iframe, not a physical toolbar click) in Firefox ESR 153.8.
+
 ## 1.0.19 (2026-11-25) - Repeated sentences fix, detected document language, French recognition
 
 - Reported problem: sentences repeated during playback of an uploaded PDF.
