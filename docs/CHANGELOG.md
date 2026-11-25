@@ -1,3 +1,27 @@
+## 1.0.19 (2026-11-25) - Repeated sentences fix, detected document language, French recognition
+
+- Reported problem: sentences repeated during playback of an uploaded PDF.
+  Cause: the reader refreshes the voice list while a file loads and whenever the
+  browser reports a changed list, and each refresh re-applied the same voice,
+  which restarted the sentence being read. Unchanged voice, speed and pitch now
+  do nothing; a real change still applies. Checked with a playback-queue test
+  (utterances equal sentences) in Chromium, Brave and Firefox. Before the fix:
+  61 utterances for 60 sentences (Chromium), 10 for 5 (Firefox).
+- Language control now offers English (United States), English (all regions),
+  Arabic (Morocco) and French (France). Voices match the region exactly: a voice
+  tagged only "fr" or "ar-SA" is not used for French (France) or Arabic
+  (Morocco). With no matching voice the page says so, lists the installed voice
+  languages, pauses, and uses no other voice.
+- When a file is loaded (text, HTML, PDF, or recognised text of a scan) the
+  language is chosen from its text: English, Arabic (needs a majority of Arabic
+  letters) or French. It happens only at load, never during speech, and never
+  replaces a language the user picked by hand. A note names the detected
+  language. The toolbar popup (page and selected-text reading) has no language
+  control yet and keeps English (United States) or the voice picked in the reader.
+- Scanned-page recognition adds French data (packaged locally, no network).
+  Synthetic degraded English benchmark: error rates unchanged (CER 16.75% vs
+  17.40%), recognition about 19% slower (26.6 s vs 22.3 s, same session).
+
 ## 1.0.18 (2026-11-25) - Language control, online voices, recognition engine shutdown timing
 
 - Reported problem: an English file was read with a French accent. Cause: the
