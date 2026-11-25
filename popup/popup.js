@@ -114,7 +114,11 @@
         } else if (resp.ok) {
           setStatus("Reading " + resp.sentences + " sentences.");
         } else if (resp.reason === "no-local-voice") {
-          setStatus("No local voice is installed, so the page was not read. Open the PDF/text reader to allow online voices (spoken text is sent to the voice provider) or install a system voice.", true);
+          setStatus(resp.onlineCount > 0
+            ? "Only online English (United States) voices are available, and none is chosen yet, so the page was not read. Open the PDF/text reader and choose a voice there first."
+            : "No English (United States) voice is available, so the page was not read. Open the PDF/text reader, choose a voice there, or add an English voice in your system speech settings.", true);
+        } else if (resp.reason === "voice-unavailable") {
+          setStatus("The voice you chose is not available right now (an online voice needs a connection). Reconnect, or choose another voice in the reader.", true);
         } else if (resp.reason === "no-selection") {
           setStatus("Select some text on the page first.", true);
         } else if (resp.reason === "no-text") {
