@@ -141,6 +141,9 @@ async function waitFor(desc, fn, timeoutMs) {
     }
     console.log("POPUP FLOW: Read this page refused with only a French voice listed (real popup status shown, engine idle)");
 
+    if (!/^Reading \d+ sentences in French \(France\)\.$/.test(result.frenchManualStatus || "")) throw new Error("popup Language control (French) did not start French reading: " + result.frenchManualStatus);
+    console.log("POPUP FLOW: Language control set to French (France) in the real popup started reading in French (manual choice): " + result.frenchManualStatus);
+
     const sm = /^Reading (\d+) sentences/.exec(result.startStatus || "");
     const st = result.stateAfterStart || {};
     if (!(sm && Number(sm[1]) > 0 && st.total > 0 && st.state !== "idle")) {
