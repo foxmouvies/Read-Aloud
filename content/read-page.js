@@ -135,6 +135,142 @@
       next: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 5 14.5 12 5 19"/><rect x="16" y="5" width="3" height="14" rx="1"/></svg>'
     };
 
+ * ReadAloud content script. Injected on demand by the popup via
+ * chrome.scripting.executeScript. Extracts the selection or the main
+ * article text of the current page, reads it aloud, and shows a small
+ * floating control bar so playback can be controlled after the popup closes.
+ */
+(function () {
+  "use strict";
+
+  if (window.__readAloudInjected) return; // idempotent injection
+  window.__readAloudInjected = true;
+
+  var engine = null;
+  var controlBar = null;
+  var readBlocks = []; // leaf blocks of the last container extraction
+  var sentenceEls = []; // sentence index -> source block element
+  var highlightedEl = null;
+
+  function getSelectionText() {
+    var sel = window.getSelection();
+    return sel ? String(sel.toString()) : "";
+  }
+
+  /*
+   * Extract the main readable text of the page: the selection if there is
+   * one, else the best-scoring content container. Containers are scored
+   * Readability-style: block text length, penalized by link density,
+   * weighted by semantic class/id hints. Boilerplate (nav, sidebars,
+   * share/related/comment blocks) is excluded from the collected text.
+   */
+  var SKIP_TAGS = /^(NAV|ASIDE|FOOTER|HEADER|FORM|BUTTON|SCRIPT|STYLE|NOSCRIPT|IFRAME|FIGURE|SELECT)$/;
+  var SKIP_CLASS = /(share|sharing|social|related|comment|promo|advert|newsletter|subscribe|cookie|breadcrumb|pagination|toolbar|widget|sidebar|menu|nav|popup|modal|banner)/i;
+  var GOOD_CLASS = /(article|content|post|entry|main|story|article-body|post-body|body-text|text)/i;
+  var BAD_CLASS = /(nav|sidebar|comment|footer|header|promo|related|share|widget|menu|banner|ad)/i;
+  var BLOCK_TAGS = /^(P|H1|H2|H3|H4|H5|H6|LI|BLOCKQUOTE|PRE)$/;
+
+  function insideSkipped(el) {
+    for (var n = el; n && n !== document.body; n = n.parentElement) {
+      if (SKIP_TAGS.test(n.tagName)) return true;
+      var cls = (n.className && n.className.baseVal !== undefined ? n.className.baseVal : n.className) || "";
+      if (typeof cls === "string" && SKIP_CLASS.test(cls)) return true;
+    }
+    return false;
+  }
+
+  function isVisible(el) {
+    var style = window.getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden";
+  }
+
+  // Leaf-most text blocks of a container, boilerplate excluded.
+  function collectBlocks(root) {
+    var blocks = [];
+    var all = root.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre");
+    Array.prototype.forEach.call(all, function (el) {
+      if (el.querySelector("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre")) return; // keep leaf-most only
+      if (insideSkipped(el) || !isVisible(el)) return;
+      var text = (el.innerText || "").trim();
+      if (text) blocks.push(text);
+    });
+    return blocks;
+  }
+
+  function scoreContainer(el) {
+    var blocks = collectBlocks(el);
+    var len = blocks.join("\n").length;
+    if (len < 200) return -1;
+    var fullLen = (el.innerText || " ").length || 1;
+    var linkLen = 0;
+    Array.prototype.forEach.call(el.querySelectorAll("a"), function (a) {
+      linkLen += (a.innerText || "").length;
+    });
+    var score = len * (1 - Math.min(linkLen / fullLen, 0.9));
+    var cls = ((el.className || "") + " " + (el.id || ""));
+    if (typeof cls === "string") {
+      if (GOOD_CLASS.test(cls)) score *= 1.5;
+      if (BAD_CLASS.test(cls)) score *= 0.3;
+    }
+    if (el.tagName === "ARTICLE" || el.tagName === "MAIN") score *= 1.25;
+    return score;
+  }
+
+  function extractPageText() {
+    var selected = getSelectionText();
+    if (selected && selected.trim().length > 2) { readBlocks = []; return selected; }
+
+    var best = null;
+    var bestScore = 0;
+    Array.prototype.forEach.call(
+      document.querySelectorAll("article, main, [role=main], div, section"),
+      function (el) {
+        var score = scoreContainer(el);
+        if (score > bestScore) { bestScore = score; best = el; }
+      }
+    );
+    if (best) {
+      readBlocks = [];
+      var blocks = collectBlocks(best);
+      // keep the elements too: re-walk to pair text with its element
+      var els = [];
+      var all = best.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre");
+      Array.prototype.forEach.call(all, function (el) {
+        if (el.querySelector("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre")) return;
+        if (insideSkipped(el) || !isVisible(el)) return;
+        if ((el.innerText || "").trim()) els.push(el);
+      });
+      readBlocks = els;
+      return window.RAText.normalizeExtractedText(blocks.join("\n\n"));
+    }
+    readBlocks = [];
+    var text = document.body ? document.body.innerText || document.body.textContent || "" : "";
+    return window.RAText.normalizeExtractedText(text);
+  }
+
+  function ensureControlBar() {
+    if (controlBar) return controlBar;
+    controlBar = document.createElement("div");
+    controlBar.id = "readaloud-control-bar";
+    controlBar.setAttribute("role", "toolbar");
+    controlBar.setAttribute("aria-label", "ReadAloud playback controls");
+    controlBar.style.cssText = [
+      "position:fixed", "bottom:16px", "right:16px", "z-index:2147483647",
+      "display:flex", "gap:6px", "align-items:center",
+      "background:#1f2430", "color:#fff", "border-radius:24px",
+      "padding:6px 10px", "font:13px/1.4 system-ui,sans-serif",
+      "box-shadow:0 2px 10px rgba(0,0,0,.35)"
+    ].join(";");
+
+    // Inline SVG icons: reliable in every environment, unlike Unicode glyphs.
+    var ICONS = {
+      play: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="7 4 20 12 7 20"/></svg>',
+      pause: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>',
+      stop: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>',
+      prev: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="3" height="14" rx="1"/><polygon points="19 5 9.5 12 19 19"/></svg>',
+      next: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 5 14.5 12 5 19"/><rect x="16" y="5" width="3" height="14" rx="1"/></svg>'
+    };
+
     function btn(icon, title, onClick) {
       var b = document.createElement("button");
       b.innerHTML = ICONS[icon];
@@ -278,14 +414,25 @@
       playAt(0);
     }
 
-    // Voice privacy gate: without an explicit online-voice opt-in only
-    // browser-marked local voices are used; never a silently remote default.
+    // Voice choice for page reading: a voice the user picked in the reader is
+    // used as is (any language, local or online). Otherwise English (United
+    // States) only, never a voice of another language. If the picked voice is
+    // missing from the list (for example an online voice while offline) it is
+    // not replaced silently. Online voices send spoken text to the provider.
     if (window.RAStore && window.RATTS.chooseVoice && window.speechSynthesis) {
       RAStore.loadSettings(function (s) {
-        var voices = speechSynthesis.getVoices ? speechSynthesis.getVoices() : [];
-        var choice = RATTS.chooseVoice(voices || [], s.voiceURI, s.onlineOptIn === true);
-        if (choice.needsChoice) {
-          cb({ ok: false, reason: "no-local-voice", onlineCount: choice.onlineCount });
+        var voices = (speechSynthesis.getVoices ? speechSynthesis.getVoices() : []) || [];
+        var picked = null;
+        if (s.voiceURI) {
+          for (var i = 0; i < voices.length; i++) if (voices[i].voiceURI === s.voiceURI) picked = voices[i];
+          if (!picked && voices.length) {
+            cb({ ok: false, reason: "voice-unavailable", onlineCount: 0 });
+            return;
+          }
+        }
+        var choice = picked ? { voice: picked } : RATTS.chooseVoice(voices, null, "en-US");
+        if (!choice.voice && voices.length) {
+          cb({ ok: false, reason: "no-local-voice", onlineCount: choice.onlineCount || 0 });
           return;
         }
         if (choice.voice) engine.setVoice(choice.voice);
