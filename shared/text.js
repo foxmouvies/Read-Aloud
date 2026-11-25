@@ -79,11 +79,11 @@
   // English. Arabic when Arabic-script letters are a third or more of the
   // letters; French when French-only letters or common French function
   // words show up; otherwise English.
-  function detectLanguage(text) {
+  function detectLanguage(text, arabicShare) {
     var letters = (text.match(/\p{L}/gu) || []).length;
     if (!letters) return "en";
     var arabic = (text.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g) || []).length;
-    if (arabic / letters >= 0.33) return "ar";
+    if (arabic / letters >= (arabicShare || 0.33)) return "ar";
     var accents = (text.match(/[àâçéèêëîïôûùüÿœæÀÂÇÉÈÊËÎÏÔÛÙÜŸŒÆ]/g) || []).length;
     var fr = (text.toLowerCase().match(/\b(le|la|les|des|une|est|dans|pour|avec|sont|nous|vous|ils|elle|qui|que|pas|sur|mais|ou|où|et|du|au|aux|ce|cette|ces|il|je|tu|de|en|un)\b/g) || []).length;
     var en = (text.toLowerCase().match(/\b(the|and|is|are|was|were|of|to|in|that|it|for|with|as|on|this|have|has|not|but)\b/g) || []).length;

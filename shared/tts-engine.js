@@ -208,7 +208,14 @@
       }
     }
 
+    function sameVoice(a, b) {
+      if (a === b) return true;
+      if (!a || !b) return false;
+      return (a.voiceURI || a.name) === (b.voiceURI || b.name) && String(a.lang || "") === String(b.lang || "");
+    }
+
     function setRate(rate) {
+      if ((typeof options.rate === "number" ? options.rate : 1) === rate) return; // unchanged: never restart the sentence being read
       options.rate = rate;
       // Rate only applies to new utterances; restart the current one if playing.
       if (state === "speaking") {
@@ -219,6 +226,7 @@
     }
 
     function setPitch(pitch) {
+      if ((typeof options.pitch === "number" ? options.pitch : 1) === pitch) return;
       options.pitch = pitch;
       if (state === "speaking") {
         stopInternal();
@@ -232,6 +240,10 @@
     }
 
     function setVoice(voice) {
+      // The page re-reads the voice list on every voices-changed event and
+      // while it loads; re-applying the same voice must not restart (repeat)
+      // the sentence that is being read.
+      if (sameVoice(options.voice || null, voice || null)) { if (voice) options.voice = voice; return; }
       options.voice = voice;
       if (state === "speaking") {
         stopInternal();
