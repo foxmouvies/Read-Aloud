@@ -34,7 +34,7 @@
       func: () => {
         try {
           const fake = [
-            { voiceURI: "remote-one", name: "Remote One", lang: "en-US", localService: false, default: true },
+            { voiceURI: "remote-one", name: "Remote One", lang: "en-US", localService: true, default: true },
             { voiceURI: "remote-two", name: "Remote Two", lang: "en-GB", localService: false, default: false }
           ];
           Object.defineProperty(window.speechSynthesis, "getVoices", { value: () => fake, configurable: true });
@@ -71,14 +71,41 @@
       return await chrome.tabs.sendMessage(tab.id, { type: "STATE" });
     }
 
-    // Phase A: no opt-in - the real popup flow must refuse remote-by-default.
+    // Phase A: only a French voice is listed - the real popup flow must refuse
+    // (no English United States voice), never speak with the other language.
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => {
+      const fr = [{ voiceURI: "fr-one", name: "Fr One", lang: "fr-FR", localService: true, default: true }];
+      Object.defineProperty(window.speechSynthesis, "getVoices", { value: () => fr, configurable: true });
+    } });
     click("read-page");
-    out.gatedStatus = await waitStatus("No local voice");
+    out.gatedStatus = await waitStatus("No English");
     out.stateAfterGate = await stateOf();
 
-    // Phase B: deliberate opt-in (what the reader's button persists), then
-    // read through the real popup button.
-    await chrome.storage.local.set({ settings: { onlineOptIn: true } });
+    // Phase B: an English (United States) online voice is listed; online
+    // voices need no opt-in now. Read through the real popup button.
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => {
+      const fake = [
+        { voiceURI: "fr-one", name: "Fr One", lang: "fr-FR", localService: true, default: false },
+        { voiceURI: "remote-one", name: "Remote One", lang: "en-US", localService: false, default: true }
+      ];
+      Object.defineProperty(window.speechSynthesis, "getVoices", { value: () => fake, configurable: true });
+      // Stand-in voice objects are not real SpeechSynthesisVoice instances, so
+      // utterances are plain objects and speak() is a no-op (as before, no
+      // speech events fire in this environment).
+      window.SpeechSynthesisUtterance = function (t) { this.text = t; };
+      window.speechSynthesis.speak = function () {};
+    } });
+    // Only online voices and no saved choice: page reading must refuse until
+    // the user chooses one (nothing is auto-selected).
+    click("read-page");
+    out.onlineOnlyStatus = await waitStatus("Only online");
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => {
+      const fake2 = [
+        { voiceURI: "fr-one", name: "Fr One", lang: "fr-FR", localService: true, default: false },
+        { voiceURI: "local-one", name: "Local One", lang: "en-US", localService: true, default: true }
+      ];
+      Object.defineProperty(window.speechSynthesis, "getVoices", { value: () => fake2, configurable: true });
+    } });
     click("read-page");
     out.startStatus = await waitStatus("Reading ");
     await sleep(1500);
@@ -125,10 +152,12 @@
       target: { tabId: tab.id },
       func: () => {
         const fake = [
-          { voiceURI: "remote-one", name: "Remote One", lang: "en-US", localService: false, default: true },
+          { voiceURI: "remote-one", name: "Remote One", lang: "en-US", localService: true, default: true },
           { voiceURI: "remote-two", name: "Remote Two", lang: "en-GB", localService: false, default: false }
         ];
         Object.defineProperty(window.speechSynthesis, "getVoices", { value: () => fake, configurable: true });
+        window.SpeechSynthesisUtterance = function (t) { this.text = t; };
+        window.speechSynthesis.speak = function () {};
       }
     });
     click("read-page");
