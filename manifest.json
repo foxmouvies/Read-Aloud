@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ReadAloud: PDF & Text Reader",
   "short_name": "ReadAloud",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "description": "Reads web pages, selected text, PDF files and plain text aloud using your browser's built-in voices. Works in Firefox and Brave/Chromium.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyG8fLxzQwCGSZQCG3xNKF3VgG668ekVpz9emsAvuoP0EDM/hnFEHRbYVtFNCGsrnBmVwtu3ia/xWZPc45Hu5206l1LHZwPy6ufu6pwtP7CmkCdk8NCi+6sq2wy77fJwpB2/e5QPjLTwt9tTtLp8UU+NwMlEJkYGAfjM2lXaetNwhIJxa1CVxmQMk7hwb67HzJzLAo92Eu8KxcskmUajrBnD1/jMe73wC3Ww2zg/GZWmUePm8QY2LxuASOgid6fzXF/6mdc6vLU+cbgvW7lP+cPZL/dRSWwz27tQ1OHZ+30B9mg9ngUT1l75S6RQJgoKxTUa+RHGJZrOwtmG3zUL3JwIDAQAB",
   "permissions": [
