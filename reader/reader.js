@@ -24,84 +24,52 @@ let sentences = [];
 let sentenceEls = [];
 let lastSpeechError = null;
 let savedVoiceURI = null;
-let onlineOptIn = false;
+let voiceLang = "en-US"; // chosen by the user in the Language control; English by default; not stored
+let connNote = ""; // connection message shown in the voice notice
 let blockedNotice = false;
 let currentFileKey = null;
 let lastPosSave = 0;
 
 const voiceNotice = document.getElementById("voice-notice");
-const allowOnlineBtn = document.getElementById("allow-online");
-const disallowOnlineBtn = document.getElementById("disallow-online");
 
-// Local-only is the safe default: without an explicit opt-in, playback uses
-// only voices the browser marks as local and never the ambiguous default.
 function voiceChoice() {
   const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-  return window.RATTS.chooseVoice(voices, savedVoiceURI, onlineOptIn);
+  return window.RATTS.chooseVoice(voices, savedVoiceURI, voiceLang);
 }
 
+// Online voices are listed automatically with local ones. The browser or OS
+// decides which voices are online; spoken text for an online voice is sent
+// to that provider, so the notice says so whenever one is selected.
 function updateVoiceNotice(choice) {
-  if (!window.speechSynthesis || (choice.localCount === 0 && choice.onlineCount === 0)) {
-    voiceNotice.hidden = true;
-    allowOnlineBtn.hidden = true;
-    disallowOnlineBtn.hidden = true;
-    return;
+  const lines = [];
+  if (choice.savedMissing) {
+    lines.push("Your selected voice is not in the list right now (an online voice is unavailable while the connection is down). " +
+      "Reading is paused. It will come back when the voice list refreshes, or choose another voice.");
+  } else if (choice.needsChoice) {
+    lines.push("Only online voices are available for this language. Choose a voice from the list to start reading; spoken text for an online voice is sent to your browser's or system's voice provider.");
+  } else if (choice.noLangVoice) {
+    lines.push("No voice for this language is available in this browser or system, so playback is paused. " +
+      'Try "English (all regions)", or add an English voice in your system speech settings.');
+  } else if (choice.voice && choice.voice.localService === false) {
+    lines.push("This is an online voice: spoken text is sent to your browser's or system's voice provider.");
   }
-  if (onlineOptIn) {
-    voiceNotice.hidden = false;
-    voiceNotice.textContent = "Online voices are allowed: spoken text may be sent to the voice provider. " +
-      choice.onlineCount + " online and " + choice.localCount + " local voices shown.";
-    allowOnlineBtn.hidden = true;
-    disallowOnlineBtn.hidden = false;
-  } else if (choice.onlineCount > 0) {
-    voiceNotice.hidden = false;
-    voiceNotice.textContent = choice.onlineCount + " online voice(s) are hidden. Online voices are provided by " +
-      "your browser or OS vendor and spoken text is sent to that provider. Only local voices are used unless you allow online voices.";
-    allowOnlineBtn.hidden = false;
-    disallowOnlineBtn.hidden = true;
-  } else {
-    voiceNotice.hidden = true;
-    allowOnlineBtn.hidden = true;
-    disallowOnlineBtn.hidden = true;
-  }
+  if (connNote) lines.push(connNote);
+  voiceNotice.hidden = !lines.length;
+  voiceNotice.textContent = lines.join(" ");
 }
 
-allowOnlineBtn.addEventListener("click", () => {
-  onlineOptIn = true;
-  scheduleSaveSettings();
-  populateVoices();
-  // Clear a stale blocked-playback explanation: the Allow button it points
-  // to is gone once the opt-in is granted.
-  if (blockedNotice) {
-    blockedNotice = false;
-    progressEl.textContent = "";
-  }
-});
-
-// Revoking the opt-in is always possible: it hides online voices again and
-// switches playback back to local voices only.
-disallowOnlineBtn.addEventListener("click", () => {
-  onlineOptIn = false;
-  savedVoiceURI = null;
-  scheduleSaveSettings();
-  populateVoices(); // applies the best local voice, when one exists
-  if (!voiceChoice().voice && engine.getState().state !== "idle") {
-    // No local voice to fall back to: stop rather than keep speaking with
-    // a voice the user just revoked.
-    engine.stop();
-    playbackAllowed(); // shows the blocked-playback explanation again
-  }
-});
-
-// Gate every playback entry point: without local voices and without the
-// opt-in, explain instead of silently sending text to a remote voice.
+// Gate every playback entry point: no eligible voice means explain, never
+// speak with a voice of another language or a voice the user did not choose.
 function playbackAllowed() {
   const c = voiceChoice();
-  if (c.needsChoice) {
+  if (c.savedMissing || c.noLangVoice || c.needsChoice) {
     updateVoiceNotice(c);
     blockedNotice = true;
-    progressEl.textContent = "No local voice is installed, so playback is paused. Install a system voice, " +
-      'or choose "Allow online voices" - spoken text will then be sent to the voice provider.';
+    progressEl.textContent = c.savedMissing
+      ? "The selected voice is unavailable, so playback is paused. Choose another voice or wait for the list to refresh."
+      : c.needsChoice
+        ? "Choose a voice from the list to start reading."
+        : "No voice for this language is available, so playback is paused.";
     return false;
   }
   return true;
@@ -111,8 +79,7 @@ function scheduleSaveSettings() {
   RAStore.saveSettings({
     rate: parseFloat(rateInput.value),
     pitch: parseFloat(pitchInput.value),
-    voiceURI: savedVoiceURI,
-    onlineOptIn: onlineOptIn
+    voiceURI: savedVoiceURI
   });
 }
 
@@ -129,10 +96,15 @@ function scheduleSavePosition(index) {
 // Local OCR for scanned pages. Everything is loaded from packaged files
 // (worker, WASM core, language data); no image or text leaves the device.
 let ocrWorker = null;
+let ocrGen = 0;
+function endLater(w) {
+  setTimeout(() => { try { Promise.resolve(w.terminate()).catch(() => {}); } catch (e) { /* already gone */ } }, 250);
+}
 async function getOcrWorker() {
   if (ocrWorker) return ocrWorker;
+  const gen = ocrGen;
   const base = new URL("../vendor/tesseract/", location.href).href;
-  ocrWorker = await Tesseract.createWorker("eng+ara", 1, {
+  const created = await Tesseract.createWorker("eng+ara", 1, {
     workerPath: base + "worker.min.js",
     corePath: base,
     langPath: base + "lang",
@@ -140,12 +112,20 @@ async function getOcrWorker() {
     cacheMethod: "none",
     gzip: true
   });
+  // Cancelled or replaced while the engine was starting: do not keep it.
+  if (gen !== ocrGen) { endLater(created); throw new Error("cancelled"); }
+  ocrWorker = created;
   return ocrWorker;
 }
 async function stopOcr() {
   const w = ocrWorker;
   ocrWorker = null;
-  if (w) { try { await w.terminate(); } catch (e) { /* already gone */ } }
+  ocrGen++;
+  // Terminate shortly after, not in the same instant: ending the engine within
+  // its first milliseconds of a recognition leaves an internal step failing
+  // on a missing worker (an unhandled rejection in Firefox). The interface
+  // does not wait for the teardown, so Cancel stays immediate.
+  if (w) endLater(w);
 }
 
 async function pageToCanvas(page) {
@@ -155,6 +135,104 @@ async function pageToCanvas(page) {
   canvas.height = Math.ceil(viewport.height);
   await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
   return canvas;
+}
+
+
+// Scan layout helpers (local, pixel-only). A page whose ink has an empty
+// vertical gutter all the way down is OCR'd one column at a time so lines of
+// neighbouring columns are not read across. Anything ambiguous (a heading
+// spanning the columns, noisy gutter) falls back to whole-page recognition.
+function findColumnRanges(canvas) {
+  const scale = Math.min(1, 700 / canvas.width);
+  const w = Math.max(1, Math.round(canvas.width * scale)), h = Math.max(1, Math.round(canvas.height * scale));
+  const small = document.createElement("canvas");
+  small.width = w; small.height = h;
+  const g = small.getContext("2d", { willReadFrequently: true });
+  g.drawImage(canvas, 0, 0, w, h);
+  const px = g.getImageData(0, 0, w, h).data;
+  const col = new Array(w).fill(0);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    if (px[i + 3] > 0 && (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) < 140) col[x]++;
+  }
+  small.width = small.height = 0;
+  const noise = Math.max(0, Math.floor(h * 0.002));
+  let first = col.findIndex((c) => c > noise), last = -1;
+  for (let x = w - 1; x >= 0; x--) if (col[x] > noise) { last = x; break; }
+  if (first < 0 || last - first < w * 0.3) return null;
+  const minGap = Math.max(6, Math.round(w * 0.04)), minSide = Math.round((last - first) * 0.15);
+  const cuts = [];
+  let x = first;
+  while (x <= last) {
+    if (col[x] > noise) { x++; continue; }
+    let e = x; while (e <= last && col[e] <= noise) e++;
+    if (e - x >= minGap && x - first >= minSide && last - e >= minSide) cuts.push([x, e]);
+    x = e;
+  }
+  if (!cuts.length || cuts.length > 3) return null;
+  const ranges = []; let from = first;
+  for (const [a, b] of cuts) { ranges.push([from, a]); from = b; }
+  ranges.push([from, last + 1]);
+  return ranges.map(([a, b]) => [Math.max(0, Math.floor(a / scale) - 12), Math.min(canvas.width, Math.ceil(b / scale) + 12)]);
+}
+function cropColumn(canvas, x0, x1) {
+  const pad = 30;
+  const c = document.createElement("canvas");
+  c.width = x1 - x0 + pad * 2; c.height = canvas.height;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(canvas, x0, 0, x1 - x0, canvas.height, pad, 0, x1 - x0, canvas.height);
+  return c;
+}
+function rotatedCopy(canvas, deg) {
+  const c = document.createElement("canvas");
+  const swap = deg === 90 || deg === 270;
+  c.width = swap ? canvas.height : canvas.width; c.height = swap ? canvas.width : canvas.height;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+  g.translate(c.width / 2, c.height / 2); g.rotate(deg * Math.PI / 180);
+  g.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+  return c;
+}
+function wordLikeShare(text) {
+  const compact = (text || "").replace(/[\s\u200e\u200f]/g, "");
+  if (!compact.length) return 1;
+  const words = (text.match(/[A-Za-z\u00C0-\u024F]{3,}|[\u0600-\u06FF]{3,}/g) || []).join("");
+  return words.length / compact.length;
+}
+async function recognizePage(worker, canvas, alive) {
+  const rec = async (c) => { if (!alive()) throw new Error("cancelled"); return worker.recognize(c); };
+  const ranges = findColumnRanges(canvas);
+  if (ranges) {
+    const parts = [];
+    for (const [a, b] of ranges) {
+      const c = cropColumn(canvas, a, b);
+      const r = await rec(c);
+      c.width = c.height = 0;
+      parts.push((r.data.text || "").trim());
+    }
+    const all = parts.join(" ");
+    const ar = (all.match(/[\u0600-\u06FF]/g) || []).length, la = (all.match(/[A-Za-z]/g) || []).length;
+    if (ar > la) parts.reverse(); // right-to-left page: first column is on the right
+    return RAText.splitOnScriptSwitch(parts.filter(Boolean).join("\n\n"));
+  }
+  const res = await rec(canvas);
+  let best = res.data, bestText = best.text || "";
+  // Wrong orientation (a sideways or upside-down scan) produces scattered
+  // one- and two-character fragments, even when the engine reports a middling
+  // confidence. When the text does not look like words, try the other
+  // orientations and keep one only if it is clearly more word-like.
+  if (wordLikeShare(bestText) < 0.45) {
+    let bestShare = wordLikeShare(bestText);
+    for (const deg of [90, 270, 180]) {
+      const rc = rotatedCopy(canvas, deg);
+      const r = await rec(rc);
+      rc.width = rc.height = 0;
+      const share = wordLikeShare(r.data.text || "");
+      if (share >= bestShare + 0.25 && (r.data.confidence || 0) >= 60) { best = r.data; bestText = r.data.text || ""; bestShare = share; }
+    }
+  }
+  return RAText.splitOnScriptSwitch(bestText.trim());
 }
 
 async function extractPdfText(file, token) {
@@ -182,10 +260,10 @@ async function extractPdfText(file, token) {
       const worker = await getOcrWorker();
       if (token !== loadToken) throw new Error("cancelled");
       const canvas = await pageToCanvas(page);
-      const res = await worker.recognize(canvas);
+      const pageText = await recognizePage(worker, canvas, () => token === loadToken);
       canvas.width = canvas.height = 0;
       if (token !== loadToken) throw new Error("cancelled");
-      segments.push({ ocr: true, text: (res.data.text || "").trim() + "\n" });
+      segments.push({ ocr: true, text: pageText + "\n" });
       continue;
     }
     // Rebuild lines from positioned items, then paragraphs between pages.
@@ -262,7 +340,7 @@ function renderSentences() {
 function updateProgress(st) {
   if (st.state === "idle" && lastSpeechError) {
     progressEl.textContent = "Speech error: " + lastSpeechError +
-      " — your system may have no speech voices installed.";
+      (connNote.startsWith("The online voice stopped") ? " (see the voice notice)." : " — your system may have no speech voices installed.");
   } else {
     progressEl.textContent = st.total
       ? `Sentence ${Math.min(st.index + 1, st.total)} of ${st.total} — ${st.state}`
@@ -323,9 +401,12 @@ async function handleFile(file) {
       ? `Loaded ${file.name}: resumed at sentence ${startAt + 1} of ${sentences.length}. Press Play.`
       : `Loaded ${file.name}: ${sentences.length} sentences. Press Play.`;
   } catch (e) {
+    // Superseded or cancelled: the newer load (or the Cancel handler) owns the
+    // UI and the shared recognition worker. Tearing it down here could kill
+    // the new load's worker mid-recognition.
+    if (token !== loadToken) return;
     cancelOcrBtn.hidden = true;
     await stopOcr();
-    if (token !== loadToken) return; // superseded: the newer load owns the UI
     resetDocument();
     progressEl.textContent = "Could not read that file: " + e.message;
   }
@@ -347,24 +428,21 @@ function resetDocument() {
 
 function populateVoices() {
   const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-  const choice = window.RATTS.chooseVoice(voices, savedVoiceURI, onlineOptIn);
-  updateVoiceNotice(choice);
+  const choice = window.RATTS.chooseVoice(voices, savedVoiceURI, voiceLang);
   voiceSelect.innerHTML = "";
-  // The ambiguous "browser default" (which may be a remote voice) is only
-  // offered after an explicit online-voice opt-in.
   const listed = voices
     .map((v, i) => ({ v, i }))
-    .filter(({ v }) => onlineOptIn || v.localService !== false);
-  if (onlineOptIn || !voices.length) {
+    .filter(({ v }) => window.RATTS.voiceMatches(v, voiceLang));
+  engine.setLang(voiceLang);
+  if (!voices.length) {
     const def = document.createElement("option");
     def.value = "";
-    def.textContent = voices.length ? "Browser default" : "Default (voices unavailable)";
+    def.textContent = "Default (voices unavailable)";
     voiceSelect.appendChild(def);
-  }
-  if (!listed.length && voices.length) {
+  } else if (!listed.length || choice.savedMissing || choice.needsChoice) {
     const none = document.createElement("option");
     none.value = "";
-    none.textContent = "No local voices installed";
+    none.textContent = choice.savedMissing ? "Selected voice unavailable" : choice.needsChoice ? "Choose a voice" : "No voices for this language";
     voiceSelect.appendChild(none);
   }
   listed.forEach(({ v, i }) => {
@@ -375,17 +453,29 @@ function populateVoices() {
     voiceSelect.appendChild(opt);
   });
   if (choice.voice) {
-    const idx = voices.indexOf(choice.voice);
-    voiceSelect.value = String(idx);
+    voiceSelect.value = String(voices.indexOf(choice.voice));
     engine.setVoice(choice.voice);
+  } else if (voices.length) {
+    // Never keep speaking with a voice of another language, or silently
+    // swap the user's chosen voice for another one.
+    engine.setVoice(null);
   }
+  updateVoiceNotice(choice);
   voiceSelect.onchange = () => {
     const i = voiceSelect.value === "" ? -1 : parseInt(voiceSelect.value, 10);
     savedVoiceURI = i >= 0 ? voices[i].voiceURI : null;
     engine.setVoice(i >= 0 ? voices[i] : null);
+    connNote = connNote.startsWith("The online voice stopped") ? "" : connNote;
+    updateVoiceNotice(voiceChoice());
     scheduleSaveSettings();
   };
 }
+
+document.getElementById("language").addEventListener("change", (e) => {
+  voiceLang = e.target.value; // only enabled options can be chosen (English for now)
+  savedVoiceURI = null;
+  populateVoices();
+});
 
 if (window.speechSynthesis) {
   populateVoices();
@@ -472,7 +562,6 @@ RAStore.loadSettings((s) => {
     engine.setPitch(s.pitch);
   }
   if (s.voiceURI) savedVoiceURI = s.voiceURI;
-  onlineOptIn = s.onlineOptIn === true;
   populateVoices();
 });
 
@@ -481,5 +570,30 @@ engine.on("progress", updateProgress);
 engine.on("end", updateProgress);
 engine.on("error", (e) => {
   lastSpeechError = e.error || "unknown";
+  const cur = voiceChoice().voice;
+  if (cur && cur.localService === false) {
+    connNote = "The online voice stopped (connection problem or the voice service is unavailable). Position kept: " +
+      "check the connection and press Play to continue from this sentence, or choose another voice.";
+    populateVoices();
+  }
   updateProgress(e.state || engine.getState());
+});
+
+// Connection changes: refresh the voice list on every change. Nothing is
+// switched or restarted automatically: a lost connection pauses reading only
+// when an online voice is in use, and after reconnecting the user presses
+// Play or Resume.
+window.addEventListener("offline", () => {
+  const cur = voiceChoice().voice;
+  const usingOnline = cur && cur.localService === false;
+  if (usingOnline && engine.getState().state === "speaking") engine.pause();
+  connNote = usingOnline
+    ? "Connection lost. Reading is paused on the online voice. Reconnect and press Resume, or choose a local voice."
+    : "Connection lost. Online voices may not work until it returns; local voices are unaffected.";
+  populateVoices();
+});
+window.addEventListener("online", () => {
+  connNote = "Connection restored. The voice list was refreshed; nothing was restarted. Press Play or Resume to continue.";
+  populateVoices();
+  [1000, 3000].forEach((ms) => setTimeout(populateVoices, ms));
 });
