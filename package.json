@@ -1,0 +1,23 @@
+{
+  "name": "readaloud-extension",
+  "version": "1.0.0",
+  "description": "Firefox and Brave extension that reads web pages, selections, PDFs and text files aloud.",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node --test test/text.test.js test/engine.test.js test/store.test.js test/voices.test.js test/segmenter.test.js",
+    "test:e2e": "node test/e2e.test.js",
+    "test:ocr": "node test/ocr-e2e.js",
+    "lint": "web-ext lint --source-dir=. --ignore-files node_modules test package.json package-lock.json chromium"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "pdfjs-dist": "^4.10.38",
+    "puppeteer-core": "^25.18.1",
+    "web-ext": "^10.8.0"
+  },
+  "private": true
+}
