@@ -227,6 +227,10 @@
       }
     }
 
+    function setLang(lang) {
+      options.lang = lang || null;
+    }
+
     function setVoice(voice) {
       options.voice = voice;
       if (state === "speaking") {
@@ -249,6 +253,7 @@
       setRate: setRate,
       setPitch: setPitch,
       setVoice: setVoice,
+      setLang: setLang,
       getState: getState
     };
   }
@@ -258,25 +263,41 @@
   // default" is never chosen silently. Returns the voice to use (null means
   // browser default, only returned when opted in) and whether playback must
   // pause for a deliberate online-voice choice.
-  function chooseVoice(voices, savedURI, onlineOptIn) {
-    var locals = voices.filter(function (v) { return v.localService !== false; });
-    var onlines = voices.filter(function (v) { return v.localService === false; });
-    if (savedURI) {
-      for (var i = 0; i < voices.length; i++) {
-        if (voices[i].voiceURI === savedURI) {
-          // A saved online voice never bypasses the opt-in.
-          if (voices[i].localService !== false || onlineOptIn) {
-            return { voice: voices[i], needsChoice: false, localCount: locals.length, onlineCount: onlines.length };
-          }
-          break;
-        }
-      }
-    }
-    if (locals.length) return { voice: locals[0], needsChoice: false, localCount: locals.length, onlineCount: onlines.length };
-    if (onlineOptIn) return { voice: null, needsChoice: false, localCount: 0, onlineCount: onlines.length };
-    // No local voices and no opt-in: caller must explain and offer the choice.
-    return { voice: null, needsChoice: onlines.length > 0, localCount: 0, onlineCount: onlines.length };
+  // True when a voice speaks the given language ("en" matches en, en-US, en_GB).
+  function voiceMatches(v, lang) {
+    var want = String(lang).toLowerCase();
+    var l = String(v.lang || "").toLowerCase().replace("_", "-");
+    return l === want || l.indexOf(want + "-") === 0;
   }
 
-  root.RATTS = { createEngine: createEngine, chooseVoice: chooseVoice };
+  // The user chooses the language (English United States by default); the
+  // program never picks a language from the document and never falls back to
+  // a voice of another language. Online voices are listed with local ones.
+  // Default pick inside the chosen language: the first local voice, else the
+  // first online one. A voice the user chose is kept; if it is missing from
+  // the list (for example an online voice while offline) it is NOT replaced
+  // silently: savedMissing is true and the caller must say so.
+  function chooseVoice(voices, savedURI, lang) {
+    lang = lang || "en-US";
+    var all = voices;
+    var eligible = voices.filter(function (v) { return voiceMatches(v, lang); });
+    var locals = eligible.filter(function (v) { return v.localService !== false; });
+    var onlines = eligible.filter(function (v) { return v.localService === false; });
+    var r = { voice: null, needsChoice: false, savedMissing: false, localCount: locals.length,
+              onlineCount: onlines.length, noLangVoice: all.length > 0 && eligible.length === 0 };
+    if (savedURI) {
+      for (var i = 0; i < eligible.length; i++) {
+        if (eligible[i].voiceURI === savedURI) { r.voice = eligible[i]; return r; }
+      }
+      var known = all.some(function (v) { return v.voiceURI === savedURI; });
+      if (!known && all.length > 0) { r.savedMissing = true; return r; }
+    }
+    // An online voice is never picked for the user: with no saved choice and
+    // no local voice, the user has to choose one deliberately.
+    r.voice = locals[0] || null;
+    if (!r.voice && onlines.length) r.needsChoice = true;
+    return r;
+  }
+
+  root.RATTS = { createEngine: createEngine, chooseVoice: chooseVoice, voiceMatches: voiceMatches };
 })(typeof self !== "undefined" ? self : this);

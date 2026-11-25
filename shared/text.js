@@ -220,6 +220,24 @@
    * it must be wide, land in the page's middle band, and leave items on both
    * sides. Anything weaker returns a single column (unchanged behavior).
    */
+// A recognised line that ends without sentence punctuation and is followed by
+  // a line in the other script (Arabic vs Latin) is a separate item (heading,
+  // caption, bilingual pair), so the pair becomes a paragraph break.
+  function splitOnScriptSwitch(text) {
+    const lines = (text || "").split("\n");
+    const script = (l) => {
+      const ar = (l.match(/[\u0600-\u06FF]/g) || []).length, la = (l.match(/[A-Za-z]/g) || []).length;
+      return ar === 0 && la === 0 ? "" : ar > la ? "ar" : "la";
+    };
+    const out = [];
+    for (let i = 0; i < lines.length; i++) {
+      out.push(lines[i]);
+      const a = script(lines[i]), nextLine = lines[i + 1];
+      if (i + 1 < lines.length && lines[i].trim() && nextLine.trim() && a && script(nextLine) && a !== script(nextLine) && !/[.!?\u061F\u2026:;]["'\u201D\u00BB)]*\s*$/.test(lines[i])) out.push("");
+    }
+    return out.join("\n");
+  }
+
   function splitColumns(items) {
     var positioned = [];
     for (var i = 0; i < items.length; i++) {
@@ -300,7 +318,9 @@
   }
 
   return {
+    detectLanguage: detectLanguage,
     splitColumns: splitColumns,
+    splitOnScriptSwitch: splitOnScriptSwitch,
     fixVisualOrderRtl: fixVisualOrderRtl,
     normalizeWhitespace: normalizeWhitespace,
     normalizeExtractedText: normalizeExtractedText,
