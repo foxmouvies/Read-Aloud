@@ -208,3 +208,21 @@ test("watchdog is disarmed when reading finishes naturally (B16)", async () => {
     globalThis.clearInterval = realClear;
   }
 });
+
+test("re-applying the same voice, rate or pitch while speaking does not repeat the sentence", () => {
+  const synth = makeMockSynth();
+  synth.speak = function (u) { this.spoken.push(u.text); }; // never ends: stays on sentence 1
+  globalThis.speechSynthesis = synth;
+  const engine = RATTS.createEngine({ rate: 1 });
+  engine.load(["First sentence.", "Second sentence."], 0);
+  engine.setVoice({ name: "A", lang: "en-US", voiceURI: "a" });
+  engine.play();
+  assert.equal(synth.spoken.length, 1);
+  engine.setVoice({ name: "A", lang: "en-US", voiceURI: "a" }); // new object, same voice (list refresh)
+  engine.setRate(1); engine.setPitch(1);
+  assert.equal(synth.spoken.length, 1, "no repeat for unchanged settings");
+  engine.setVoice({ name: "B", lang: "en-US", voiceURI: "b" });
+  assert.equal(synth.spoken.length, 2, "a real voice change restarts the sentence with the new voice");
+  engine.setRate(1.5);
+  assert.equal(synth.spoken.length, 3, "a real rate change still applies");
+});

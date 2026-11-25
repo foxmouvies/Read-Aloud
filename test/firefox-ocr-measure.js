@@ -104,7 +104,7 @@ const mb = (b) => Math.round(b / 1048576);
     const base = reqs.length; const start = mb(rssTree(root));
     console.log("proxy hits before OCR (browser background):", base, JSON.stringify(reqs.map((r) => r.u).slice(0, 5)), "start RSS MB", start);
     const fx = (n) => path.join(EXT_DIR, "test", "fixtures", n);
-    for (const name of ["scanned-en.pdf", "scanned-ar.pdf", "scanned-both.pdf", "stress-scans.pdf"]) {
+    for (const name of ["scanned-en.pdf", "scanned-ar.pdf", "scanned-fr.pdf", "scanned-both.pdf", "stress-scans.pdf"]) {
       await execute("document.getElementById('file-input').value=''; document.getElementById('progress').textContent=''");
       const el = await findEl("#file-input"); const n0 = reqs.length; let peak = 0;
       const iv = setInterval(() => { peak = Math.max(peak, rssTree(root)); }, 250);
@@ -114,10 +114,14 @@ const mb = (b) => Math.round(b / 1048576);
       const ms = Date.now() - t0; clearInterval(iv);
       const chars = await execute("return document.getElementById('text-view').textContent.length");
       await sleep(2000);
+      console.log("LANG after " + name + ":", JSON.stringify(await execute("return {lang: document.getElementById('language').value, notice: document.getElementById('voice-notice').textContent.slice(0,260), text: document.getElementById('text-view').textContent.slice(0,90)}")));
       if (name === "stress-scans.pdf") console.log("STRESS TEXT:", JSON.stringify(await execute("return [...document.querySelectorAll('#text-view .sentence')].map(s=>s.textContent)")));
       console.log(JSON.stringify({ file: name, ms, chars, peak_MB: peak, after_MB: mb(rssTree(root)), external_requests_during: reqs.length - n0 }));
     }
     await sleep(5000);
+    console.log("RSS MB with last document still open:", mb(rssTree(root)));
+    await execute("location.reload()"); await sleep(3000);
+    for (const t of [5, 15, 30]) { await sleep(t === 5 ? 2000 : (t === 15 ? 10000 : 15000)); console.log("RSS MB after reader reloaded (document closed), +" + t + "s:", mb(rssTree(root))); }
     console.log("idle RSS MB after OCR:", mb(rssTree(root)), "total proxy hits during test:", reqs.length, JSON.stringify(reqs.slice(base).map((r) => r.u)));
   } catch (e) { console.log("FAIL", e.message); process.exitCode = 1; }
   try { await req("DELETE", `${BASE}/session/${SID}`); } catch (e) {}

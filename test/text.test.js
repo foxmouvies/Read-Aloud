@@ -158,3 +158,13 @@ test("splitOnScriptSwitch separates unpunctuated Arabic/Latin line pairs only", 
   // digits-only or empty lines never trigger a split
   assert.equal(RAText.splitOnScriptSwitch("12345\nHello there"), "12345\nHello there");
 });
+
+test("document language detection for the initial voice language", () => {
+  const T = require("../shared/text.js");
+  assert.equal(T.detectLanguage("The harbour festival starts on Friday evening and the music is free."), "en");
+  assert.equal(T.detectLanguage("Le festival du port commence vendredi soir. Nous vous attendons tous à côté du café."), "fr");
+  assert.equal(T.detectLanguage("مرحبا بكم في مهرجان الفوانيس عند الميناء. يبدأ العرض في الساعة السابعة مساء."), "ar");
+  // Mostly English with a little Arabic stays English when a majority share is required.
+  const mixed = "The harbour lantern parade begins at seven in the evening. Visitors should arrive early to find a good place along the water. مرحبا بكم في المهرجان";
+  assert.equal(T.detectLanguage(mixed, 0.5), "en");
+});
