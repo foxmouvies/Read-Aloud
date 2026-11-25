@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReadAloud — PDF &amp; text reader</title>
+  <link rel="stylesheet" href="reader.css">
+</head>
+<body>
+  <header>
+    <h1><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2f6fed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg> ReadAloud reader</h1>
+    <p class="hint">Open a PDF, an HTML file or a plain-text file and listen to it. Text extraction and saved data stay on your device. Voices marked "local" speak without sending text anywhere; voices marked "online" are provided by your browser or OS vendor and may send the spoken text to that provider.</p>
+  </header>
+
+  <section id="drop-zone" tabindex="0">
+    <p><strong>Drop a .pdf, .txt or .html file here</strong> or</p>
+    <input id="file-input" type="file" accept=".pdf,.txt,.html,.htm,text/plain,text/html,application/pdf">
+  </section>
+
+  <section id="controls" hidden>
+    <div class="row">
+      <button id="play" class="primary" title="Start reading (Space)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><polygon points="7 4 20 12 7 20"/></svg> Play</button>
+      <button id="pause" title="Pause (Space)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Pause</button>
+      <button id="resume" title="Resume (Space)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><polygon points="7 4 20 12 7 20"/></svg> Resume</button>
+      <button id="stop" title="Stop (Esc)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg> Stop</button>
+      <button id="prev" title="Previous sentence (Left arrow)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><rect x="5" y="5" width="3" height="14" rx="1"/><polygon points="19 5 9.5 12 19 19"/></svg> Prev</button>
+      <button id="next" title="Next sentence (Right arrow)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><polygon points="5 5 14.5 12 5 19"/><rect x="16" y="5" width="3" height="14" rx="1"/></svg> Next</button>
+    </div>
+    <div class="row sliders">
+      <label>Speed <span id="rate-value">1.0×</span>
+        <input id="rate" type="range" min="0.5" max="2" step="0.1" value="1"></label>
+      <label>Pitch <span id="pitch-value">1.0</span>
+        <input id="pitch" type="range" min="0.5" max="2" step="0.1" value="1"></label>
+      <label>Voice
+        <select id="voice"></select></label>
+      <p id="voice-notice" class="hint" hidden></p>
+      <button id="allow-online" type="button" hidden>Allow online voices</button>
+      <button id="disallow-online" type="button" hidden>Disallow online voices</button>
+    </div>
+    <p id="progress" role="status"></p>
+    <button id="cancel-ocr" hidden>Cancel text recognition</button>
+    <p id="shortcuts-hint" class="hint">Shortcuts: Space = play/pause, &larr; &rarr; = previous/next sentence, Esc = stop. Select any sentence to read from it.</p>
+  </section>
+
+  <article id="text-view" aria-live="polite"></article>
+
+  <script src="../shared/store.js"></script>
+  <script src="../shared/text.js"></script>
+  <script src="../shared/html-text.js"></script>
+  <script src="../vendor/tesseract/tesseract.min.js"></script>
+  <script src="../shared/tts-engine.js"></script>
+  <script type="module" src="reader.js"></script>
+</body>
+</html>
