@@ -144,3 +144,17 @@ test("splitIntoSentences keeps mid-sentence quoted text together when no period"
   const s = RAText.splitIntoSentences('He called it "a test" and moved on. She agreed.');
   assert.deepEqual(s, ['He called it "a test" and moved on.', "She agreed."]);
 });
+
+test("splitOnScriptSwitch separates unpunctuated Arabic/Latin line pairs only", () => {
+  const ar = "\u064A\u0628\u062F\u0623 \u0627\u0644\u0645\u0647\u0631\u062C\u0627\u0646";
+  // unpunctuated Arabic line followed by an English line: paragraph break
+  assert.equal(RAText.splitOnScriptSwitch(ar + "\nFree shuttle buses leave."), ar + "\n\nFree shuttle buses leave.");
+  // punctuated line: unchanged (already a boundary)
+  assert.equal(RAText.splitOnScriptSwitch("Start now.\n" + ar), "Start now.\n" + ar);
+  // same script across a wrapped line: unchanged
+  assert.equal(RAText.splitOnScriptSwitch("The reader opens files\nand reads them aloud"), "The reader opens files\nand reads them aloud");
+  // inline bilingual text stays on its line (majority script decides)
+  assert.equal(RAText.splitOnScriptSwitch("Please say " + ar + " when you arrive\nand wait outside"), "Please say " + ar + " when you arrive\nand wait outside");
+  // digits-only or empty lines never trigger a split
+  assert.equal(RAText.splitOnScriptSwitch("12345\nHello there"), "12345\nHello there");
+});

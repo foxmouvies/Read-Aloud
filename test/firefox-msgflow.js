@@ -136,17 +136,17 @@ async function waitFor(desc, fn, timeoutMs) {
 
     const g = result.gatedStatus || "";
     const sg = result.stateAfterGate || {};
-    if (!(g.includes("No local voice") && sg.state === "idle")) {
+    if (!(g.includes("No English (United States) voice") && sg.state === "idle")) {
       throw new Error("voice gate did not refuse remote-by-default via the real popup: " + JSON.stringify({ status: g, state: sg }));
     }
-    console.log("POPUP FLOW: Read this page blocked without opt-in (real popup status shown, engine idle)");
+    console.log("POPUP FLOW: Read this page refused with only a French voice listed (real popup status shown, engine idle)");
 
     const sm = /^Reading (\d+) sentences/.exec(result.startStatus || "");
     const st = result.stateAfterStart || {};
     if (!(sm && Number(sm[1]) > 0 && st.total > 0 && st.state !== "idle")) {
-      throw new Error("Read this page after opt-in failed via the real popup: " + JSON.stringify({ status: result.startStatus, state: st }));
+      throw new Error("Read this page with an online en-US voice failed via the real popup: " + JSON.stringify({ status: result.startStatus, state: st }));
     }
-    console.log("POPUP FLOW: Read this page after opt-in reading", st.total, "sentences (real popup button)");
+    console.log("POPUP FLOW: Read this page with an online en-US voice, no opt-in, reading", st.total, "sentences (real popup button)");
 
     const expectedKey = `page:http://127.0.0.1:${WEB_PORT}/complex.html`;
     const rt = result.positionRoundTrip || {};

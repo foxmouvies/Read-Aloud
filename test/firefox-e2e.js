@@ -174,47 +174,48 @@ async function waitFor(desc, fn, timeoutMs) {
     return true;
   `);
 
-  // Voice privacy gate: with only remote voices and no opt-in, playback must
-  // be blocked with an explanation, and the disclosure must be visible.
+  // Language control (English United States default, user-chosen) and
+  // automatic online-voice inclusion: no Allow/Disallow buttons exist; the
+  // voice list only shows voices of the chosen language; with none in
+  // en-US the play button is blocked with an explanation instead of using
+  // a voice of another language; choosing "English (all regions)" lists
+  // English voices only (online ones included, labelled), and selecting an
+  // online voice shows the provider disclosure.
+  const gone = await execute("return !document.getElementById('allow-online') && !document.getElementById('disallow-online')");
+  if (!gone) throw new Error("Allow/Disallow online voice buttons still present");
+  const langDefault = await execute("return document.getElementById('language').value");
+  if (langDefault !== "en-US") throw new Error("default language is not en-US: " + langDefault);
+  const usOpts = await execute("return [...document.querySelectorAll('#voice option')].map(o => o.textContent)");
+  console.log("LANGUAGE DEFAULT en-US; voice options:", usOpts.length, JSON.stringify(usOpts.slice(0, 3)));
+  if (usOpts.some((t) => !/\(en[-_]US,/i.test(t) && !/^No voices|unavailable|^Choose a voice/.test(t))) throw new Error("non en-US voice listed under English (United States): " + JSON.stringify(usOpts.slice(0, 5)));
+  if (usOpts.length === 1 && /^No voices/.test(usOpts[0])) {
+    await click("#play");
+    const blockedMsg = await waitFor("blocked playback explanation", () =>
+      execute("return document.getElementById('progress').textContent").then((t) => /paused/.test(t) && t), 10000);
+    console.log("NO en-US VOICE: playback blocked, no other-language fallback:", blockedMsg);
+  }
+  await execute("const l = document.getElementById('language'); l.value = 'en'; l.dispatchEvent(new Event('change', { bubbles: true })); return true");
+  const enOpts = await waitFor("English voices listed", () =>
+    execute("return [...document.querySelectorAll('#voice option')].map(o => o.textContent)").then((o) => o.length > 0 && !/^No voices/.test(o[0]) && o), 10000);
+  const nonEn = enOpts.filter((t) => !/^Choose a voice/.test(t)).filter((t) => !/\(en([-_][A-Za-z0-9_-]*)?,/i.test(t));
+  if (nonEn.length) throw new Error("non-English voice under English: " + JSON.stringify(nonEn.slice(0, 5)));
+  const onlineLabelled = enOpts.filter((t) => /online\)$/.test(t)).length;
+  console.log("ENGLISH (ALL REGIONS):", enOpts.length, "English voices listed,", onlineLabelled, "labelled online; none of another language");
+  await shot("/tmp/ff-voice-language.png");
+
+  // Manual-choice guard: only online voices exist and the user has not chosen
+  // one, so none is auto-selected and Play is blocked with an explanation.
+  const first = await execute("const v = document.getElementById('voice'); return {sel: v.options[v.selectedIndex].text, n: v.options.length}");
+  if (!/^Choose a voice/.test(first.sel)) throw new Error("an online voice was auto-selected: " + first.sel);
+  await click("#play");
+  const needMsg = await waitFor("choose-a-voice message", () =>
+    execute("return document.getElementById('progress').textContent").then((t) => /Choose a voice/.test(t) && t), 10000);
+  console.log("NO USER CHOICE, ONLY ONLINE VOICES: nothing auto-selected, Play blocked:", needMsg);
+  await execute("const v = document.getElementById('voice'); v.selectedIndex = 1; v.dispatchEvent(new Event('change', { bubbles: true })); return true");
   const disclosure = await waitFor("online-voice disclosure", () =>
     execute("return (document.getElementById('voice-notice')||{}).textContent || ''")
-      .then((t) => /spoken text is sent to (that|the voice) provider/.test(t) && t), 10000);
-  await click("#play");
-  const blockedMsg = await waitFor("blocked playback explanation", () =>
-    execute("return document.getElementById('progress').textContent").then((t) => /paused/.test(t) && t), 10000);
-  console.log("PLAYBACK BLOCKED WITHOUT OPT-IN:", blockedMsg);
-  await shot("/tmp/ff-voice-blocked.png");
-  await click("#allow-online");
-  const optInNotice = await execute("return (document.getElementById('voice-notice')||{}).textContent || ''");
-  if (!/Online voices are allowed/.test(optInNotice)) throw new Error("opt-in confirmation missing: " + optInNotice);
-  console.log("ONLINE VOICES ENABLED VIA DISCLOSED OPT-IN");
-  const staleMsg = await execute("return document.getElementById('progress').textContent");
-  if (/paused|Allow online voices/.test(staleMsg)) throw new Error("stale blocked explanation after opt-in: " + staleMsg);
-  console.log("BLOCKED EXPLANATION CLEARED AFTER OPT-IN");
-  await shot("/tmp/ff-voice-opted-in.png");
-
-  // Opt-in is revocable: Disallow hides online voices again and re-blocks
-  // playback behind the same gate (v1.0.8).
-  const disallowVisible = await execute("return !document.getElementById('disallow-online').hidden");
-  if (!disallowVisible) throw new Error("Disallow online voices button not shown after opt-in");
-  await click("#disallow-online");
-  await waitFor("online voices hidden again after revoke", () =>
-    execute("return (document.getElementById('voice-notice')||{}).textContent || ''")
-      .then((t) => /Only local voices are used/.test(t) && t), 10000);
-  const allowAgain = await execute("return !document.getElementById('allow-online').hidden");
-  if (!allowAgain) throw new Error("Allow button not restored after revoke");
-  const disallowGone = await execute("return document.getElementById('disallow-online').hidden");
-  if (!disallowGone) throw new Error("Disallow button still visible after revoke");
-  await click("#play");
-  await waitFor("playback blocked again after revoke", () =>
-    execute("return document.getElementById('progress').textContent").then((t) => /paused/.test(t) && t), 10000);
-  console.log("ONLINE VOICE OPT-IN REVOKED: online voices hidden, playback blocked again");
-  await shot("/tmp/ff-voice-revoked.png");
-  // Re-opt-in so the real playback checks below can run.
-  await click("#allow-online");
-  await waitFor("opt-in confirmation after re-opt-in", () =>
-    execute("return (document.getElementById('voice-notice')||{}).textContent || ''")
-      .then((t) => /Online voices are allowed/.test(t) && t), 10000);
+      .then((t) => /spoken text is sent to your browser/.test(t) && t), 10000);
+  console.log("ONLINE VOICE DISCLOSURE SHOWN:", disclosure);
 
   // Real playback: trusted Play click, speaking state, then FULL completion.
   await click("#play");
