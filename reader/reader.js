@@ -24,6 +24,7 @@ let sentences = [];
 let sentenceEls = [];
 let lastSpeechError = null;
 let savedVoiceURI = null;
+let userChoseLang = false; // set when the user picks a language; detection never overrides it
 let voiceLang = "en-US"; // chosen by the user in the Language control; English by default; not stored
 let connNote = ""; // connection message shown in the voice notice
 let blockedNotice = false;
@@ -48,11 +49,14 @@ function updateVoiceNotice(choice) {
   } else if (choice.needsChoice) {
     lines.push("Only online voices are available for this language. Choose a voice from the list to start reading; spoken text for an online voice is sent to your browser's or system's voice provider.");
   } else if (choice.noLangVoice) {
-    lines.push("No voice for this language is available in this browser or system, so playback is paused. " +
-      'Try "English (all regions)", or add an English voice in your system speech settings.');
+    const names = langSelect.options[langSelect.selectedIndex] ? langSelect.options[langSelect.selectedIndex].textContent : voiceLang;
+    const have = [...new Set((window.speechSynthesis ? window.speechSynthesis.getVoices() : []).map((v) => v.lang))].sort().join(", ");
+    lines.push(`No voice for ${names} is available in this browser or system, so playback is paused and no other voice is substituted. ` +
+      (have ? `Voice languages installed: ${have}. ` : "") + "Add a voice for this language in your system speech settings, or choose another language.");
   } else if (choice.voice && choice.voice.localService === false) {
     lines.push("This is an online voice: spoken text is sent to your browser's or system's voice provider.");
   }
+  if (langNote) lines.push(langNote);
   if (connNote) lines.push(connNote);
   voiceNotice.hidden = !lines.length;
   voiceNotice.textContent = lines.join(" ");
@@ -104,7 +108,7 @@ async function getOcrWorker() {
   if (ocrWorker) return ocrWorker;
   const gen = ocrGen;
   const base = new URL("../vendor/tesseract/", location.href).href;
-  const created = await Tesseract.createWorker("eng+ara", 1, {
+  const created = await Tesseract.createWorker("eng+ara+fra", 1, {
     workerPath: base + "worker.min.js",
     corePath: base,
     langPath: base + "lang",
@@ -370,6 +374,26 @@ cancelOcrBtn.addEventListener("click", async () => {
   progressEl.textContent = "Text recognition cancelled.";
 });
 
+// Initial language for a newly loaded document: detected from its text
+// (OCR text for scans), mapped English -> English (United States), Arabic ->
+// Arabic (Morocco), French -> French (France). Only at load, when nothing is
+// playing, and never over a language the user chose by hand. If the browser
+// has no voice for that language the notice says so; no other voice is used.
+const DETECTED_LANG = { en: "en-US", ar: "ar-MA", fr: "fr-FR" };
+let langNote = "";
+function applyDetectedLanguage(text, name) {
+  langNote = "";
+  if (userChoseLang) return;
+  const target = DETECTED_LANG[RAText.detectLanguage(text, 0.5)] || "en-US";
+  const cur = voiceLang === "en" ? "en-US" : voiceLang;
+  if (target === cur) return;
+  voiceLang = target;
+  langSelect.value = target;
+  savedVoiceURI = null;
+  langNote = "Detected " + langSelect.options[langSelect.selectedIndex].textContent + " in " + name + ". Change it with the Language control.";
+  populateVoices();
+}
+
 async function handleFile(file) {
   if (!file) return;
   const token = ++loadToken;
@@ -391,6 +415,7 @@ async function handleFile(file) {
       progressEl.textContent = "No readable text found in this file.";
       return;
     }
+    applyDetectedLanguage(sentences.join(" "), file.name);
     renderSentences();
     currentFileKey = RAStore.fileKey(file.name, file.size);
     const savedIdx = await new Promise((r) => RAStore.loadPosition(currentFileKey, r));
@@ -471,8 +496,10 @@ function populateVoices() {
   };
 }
 
-document.getElementById("language").addEventListener("change", (e) => {
-  voiceLang = e.target.value; // only enabled options can be chosen (English for now)
+const langSelect = document.getElementById("language");
+langSelect.addEventListener("change", (e) => {
+  userChoseLang = true; langNote = ""; // manual choice wins over document detection from now on
+  voiceLang = e.target.value;
   savedVoiceURI = null;
   populateVoices();
 });
