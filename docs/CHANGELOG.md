@@ -1,3 +1,9 @@
+## 1.0.26 (2026-11-26) - Collapsible player
+
+- The whole player box can be collapsed with an arrow at the end of the transport row (up when expanded, down when collapsed). Collapsed shows only Back, Play, Pause, Forward and the arrow. Playback and Settings state are kept. The collapsed state is per view and is not saved.
+- Fix: the Cancel text recognition button no longer stays visible after a scan load is replaced by another file. It shows only during scan recognition.
+- Tests: collapse-player-e2e (Chromium 1280/390/320, mock speech), cancel-load-e2e.
+
 ## 1.0.25 (2026-11-26) - Slim upload strip
 
 - Reader: the file box is now a slim one-line strip directly under the title (about 35px on desktop, 32px at 320 and 390px), with the explanation text below it. At 480px and narrower the label shortens to "Drop a file here". Choosing a file or dropping one works as before; a very long file name keeps the strip on one line and the Choose File button visible. The status line under the player shows a shortened name (about 20 characters, middle cut, extension kept) so the sticky player no longer grows to about 8 lines with a 100-character name; the full name is in the status tooltip and the file chooser.
