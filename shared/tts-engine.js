@@ -312,5 +312,16 @@
     return r;
   }
 
-  root.RATTS = { createEngine: createEngine, chooseVoice: chooseVoice, voiceMatches: voiceMatches };
+  // Browser-aware first-use recommendation. It never changes the active voice and never starts a
+  // download. A voice the user saved is respected; in Edge the verified local voice that
+  // chooseVoice picks is used as is; elsewhere an opt-in (Piper) voice for the chosen language is
+  // offered as a recommendation the user must accept, and must then download explicitly.
+  function recommendVoice(voices, savedURI, lang, isEdge) {
+    if (savedURI) return { voice: null, reason: "saved-choice" };
+    if (isEdge) return { voice: null, reason: "edge-uses-local" };
+    var opt = (voices || []).filter(function (v) { return v.optIn && voiceMatches(v, lang || "en-US"); })[0];
+    return opt ? { voice: opt, reason: "optin-recommended" } : { voice: null, reason: "none-for-language" };
+  }
+
+  root.RATTS = { createEngine: createEngine, chooseVoice: chooseVoice, voiceMatches: voiceMatches, recommendVoice: recommendVoice };
 })(typeof self !== "undefined" ? self : this);
