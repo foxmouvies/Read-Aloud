@@ -18,11 +18,15 @@
   </section>
 
   <section id="controls" hidden>
-    <div class="row">
+    <div class="row transport">
       <button id="play" class="primary" title="Start reading (Space)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><polygon points="7 4 20 12 7 20"/></svg> Play</button>
       <button id="pause" title="Pause (Space)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Pause</button>
       <button id="resume" title="Resume (Space)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><polygon points="7 4 20 12 7 20"/></svg> Resume</button>
       <button id="stop" title="Stop (Esc)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg> Stop</button>
+      <button id="prev" title="Previous sentence (Left arrow)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><rect x="5" y="5" width="3" height="14" rx="1"/><polygon points="19 5 9.5 12 19 19"/></svg> Prev</button>
+      <button id="next" title="Next sentence (Right arrow)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><polygon points="5 5 14.5 12 5 19"/><rect x="16" y="5" width="3" height="14" rx="1"/></svg> Next</button>
+    </div>
+    <div class="row sliders" id="settings-row">
       <label class="lang">Language
         <select id="language" title="Voice language">
           <option value="en-US" selected>English (United States)</option>
@@ -30,19 +34,17 @@
           <option value="ar-MA">Arabic (Morocco)</option>
           <option value="fr-FR">French (France)</option>
         </select></label>
-      <button id="prev" title="Previous sentence (Left arrow)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><rect x="5" y="5" width="3" height="14" rx="1"/><polygon points="19 5 9.5 12 19 19"/></svg> Prev</button>
-      <button id="next" title="Next sentence (Right arrow)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><polygon points="5 5 14.5 12 5 19"/><rect x="16" y="5" width="3" height="14" rx="1"/></svg> Next</button>
-    </div>
-    <div class="row sliders">
       <label>Speed <span id="rate-value">1.0×</span>
         <input id="rate" type="range" min="0.5" max="2" step="0.1" value="1"></label>
       <label>Pitch <span id="pitch-value">1.0</span>
         <input id="pitch" type="range" min="0.5" max="2" step="0.1" value="1"></label>
       <label>Voice
-        <select id="voice"></select></label>
+        <select id="voice"><option value="">Loading voices…</option></select></label>
       <p id="voice-notice" class="hint" hidden></p>
     </div>
-    <p id="progress" role="status"></p>
+    <div id="progress-bar" role="progressbar" aria-label="Reading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+    <div class="statusline"><p id="progress" role="status"></p>
+      <span class="tools-right"><button id="toggle-settings" class="settings-toggle" aria-expanded="false" aria-controls="settings-row">Settings</button><span class="textsize" role="group" aria-label="Text size"><button id="size-down" title="Smaller text" aria-label="Smaller text">A&minus;</button><button id="size-up" title="Larger text" aria-label="Larger text">A+</button></span></span></div>
     <button id="cancel-ocr" hidden>Cancel text recognition</button>
     <p id="shortcuts-hint" class="hint">Shortcuts: Space = play/pause, &larr; &rarr; = previous/next sentence, Esc = stop. Select any sentence to read from it.</p>
   </section>

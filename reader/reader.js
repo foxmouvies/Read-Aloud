@@ -421,6 +421,9 @@ function updateProgress(st) {
       ? `Sentence ${Math.min(st.index + 1, st.total)} of ${st.total} — ${st.state}`
       : "";
   }
+  const pct = st.total && st.state !== "idle" ? Math.round(Math.min(st.index + 1, st.total) / st.total * 100) : 0;
+  const bar = document.getElementById("progress-bar");
+  if (bar) { bar.firstElementChild.style.width = pct + "%"; bar.setAttribute("aria-valuenow", String(pct)); }
   // Overlong sentences are split into several queue entries; highlight the
   // original sentence the current entry belongs to.
   const hi = typeof st.sentenceIndex === "number" ? st.sentenceIndex : st.index;
@@ -429,7 +432,13 @@ function updateProgress(st) {
     el.classList.toggle("done", st.state !== "idle" && i < hi);
   });
   if (st.state !== "idle" && sentenceEls[hi]) {
-    sentenceEls[hi].scrollIntoView({ block: "center", behavior: "smooth" });
+    // Centre the active sentence in the space BELOW the sticky player (its height changes
+    // with the Settings panel), instead of the whole viewport, so it is never hidden under it.
+    const stickyH = getComputedStyle(controls).position === "sticky" && !controls.hidden ? controls.getBoundingClientRect().height : 0;
+    const r = sentenceEls[hi].getBoundingClientRect();
+    const room = window.innerHeight - stickyH;
+    const delta = r.top - stickyH - Math.max(8, (room - r.height) / 2);
+    if (Math.abs(delta) > 4) window.scrollBy({ top: delta, behavior: "smooth" });
   }
   if (st.state !== "idle" && sentences.length) scheduleSavePosition(hi);
 }
@@ -615,6 +624,19 @@ document.getElementById("pause").addEventListener("click", () => engine.pause())
 document.getElementById("resume").addEventListener("click", () => engine.resume());
 function stopPlayback() { lastSpeechError = null; engine.stop(); updateProgress(engine.getState()); }
 document.getElementById("stop").addEventListener("click", stopPlayback);
+// Compact layout: icon-only transport buttons keep their names for screen readers;
+// the Settings button shows or hides the language/speed/pitch/voice rows.
+document.querySelectorAll(".transport button").forEach((b) => b.setAttribute("aria-label", b.textContent.trim()));
+const settingsBtn = document.getElementById("toggle-settings");
+settingsBtn.addEventListener("click", () => {
+  const open = controls.classList.toggle("settings-open");
+  settingsBtn.setAttribute("aria-expanded", String(open));
+});
+// Text size: this page view only, not saved anywhere.
+let readSize = 1.125;
+function setReadSize(v) { readSize = Math.max(0.85, Math.min(2, v)); document.documentElement.style.setProperty("--read-size", readSize + "rem"); }
+document.getElementById("size-down").addEventListener("click", () => setReadSize(readSize - 0.125));
+document.getElementById("size-up").addEventListener("click", () => setReadSize(readSize + 0.125));
 document.getElementById("prev").addEventListener("click", () => engine.prev());
 document.getElementById("next").addEventListener("click", () => engine.next());
 
