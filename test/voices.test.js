@@ -59,3 +59,15 @@ test("an empty voice list is not treated as a missing chosen voice", () => {
   assert.equal(c.savedMissing, false);
   assert.equal(c.noLangVoice, false);
 });
+
+test("recommendVoice: Edge uses its local voice, others get the opt-in voice offered, saved choice wins, nothing is auto-selected", () => {
+  const pip = { name: "Piper Alba", voiceURI: "piper:alba", localService: true, lang: "en-GB", optIn: true };
+  const loc = v("Zira", "en-GB", true);
+  const voices = [loc, pip];
+  assert.equal(RATTS.recommendVoice(voices, null, "en-GB", false).voice, pip);
+  assert.equal(RATTS.recommendVoice(voices, null, "en-GB", true).voice, null);
+  assert.equal(RATTS.recommendVoice(voices, "local://Zira", "en-GB", false).voice, null);
+  assert.equal(RATTS.recommendVoice(voices, null, "en-US", false).voice, null);
+  assert.equal(RATTS.chooseVoice(voices, null, "en-GB").voice, loc);
+  assert.equal(RATTS.chooseVoice([pip], null, "en-GB").voice, null);
+});
