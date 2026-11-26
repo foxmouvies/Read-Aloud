@@ -1,3 +1,9 @@
+## 1.0.25 (2026-11-26) - Slim upload strip
+
+- Reader: the file box is now a slim one-line strip directly under the title (about 35px on desktop, 32px at 320 and 390px), with the explanation text below it. At 480px and narrower the label shortens to "Drop a file here". Choosing a file or dropping one works as before; a very long file name keeps the strip on one line and the Choose File button visible. The status line under the player shows a shortened name (about 20 characters, middle cut, extension kept) so the sticky player no longer grows to about 8 lines with a 100-character name; the full name is in the status tooltip and the file chooser.
+- Tests: new upload-strip test (mock speech, 1280/390/320px, Settings open and closed): strip height at most 40px before and after loading, no horizontal overflow, compact status (at most 4 lines at 320px) with the full name in the tooltip, sticky player at most 40% (46% with Settings open) of the viewport, active sentence clear of the player. Scroll-sticky, read-from-here and Firefox layout tests pass.
+- Limits: mock speech only, no audible-voice check, no physical phone check, Firefox native toolbar click not tested. At 320px the browser's own "No file chosen" text shortens to the end of the name; Choose File stays visible.
+
 ## 1.0.24 (2026-11-26) - Adversarial QA fixes
 
 - Web pages: text drawn as a fallback inside canvas, object, embed, video and audio elements is no longer read; the visible text around them still is.
