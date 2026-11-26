@@ -28,7 +28,7 @@
         args: [inFrame],
         func: function (inFrameArg) {
           return typeof window.__readAloudMessage === "function"
-            ? window.__readAloudMessage({ type: "READ_FROM_POINT", lang: "auto", inFrame: inFrameArg }) : { ok: false, reason: "not-ready" };
+            ? window.__readAloudMessage({ type: "READ_FROM_POINT", lang: "en-US", inFrame: inFrameArg }) : { ok: false, reason: "not-ready" };
         }
       });
     }).catch(function () { /* restricted page: nothing to read */ });
