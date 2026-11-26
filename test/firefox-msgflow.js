@@ -67,6 +67,7 @@ async function waitFor(desc, fn, timeoutMs) {
       return;
     }
     rs.setHeader("Content-Type", "text/html");
+    if (rq.url.includes("details-")) { const S = (n) => `Sentence number ${n} of this details check is written long enough to be a sentence of its own.`; const open = rq.url.includes("details-open"); rs.end(`<html><head><title>Details flow</title></head><body><article><h1>Details flow check heading</h1><p>${S(1)} ${S(2)}</p><details${open ? " open" : ""}><summary>Closed section summary line stays readable.</summary><p>${S(3)} ${S(4)}</p><p>${S(5)}</p></details><p>${S(6)} ${S(7)}</p></article></body></html>`); return; }
     rs.end(rq.url.includes("complex") ? COMPLEX_HTML : "<html><body>index</body></html>");
   });
   await new Promise((r) => server.listen(WEB_PORT, "127.0.0.1", r));
@@ -114,7 +115,7 @@ async function waitFor(desc, fn, timeoutMs) {
           "moz:firefoxOptions": {
             binary: FIREFOX,
             profile: profileB64,
-            args: ["-headless", `moz-extension://${FF_UUID}/test/driver/driver.html?port=${WEB_PORT}${process.env.MSGFLOW_PROBES ? "&probes=1" : ""}`]
+            args: ["-headless", `moz-extension://${FF_UUID}/test/driver/driver.html?port=${WEB_PORT}${process.env.MSGFLOW_PROBES ? "&probes=1" : ""}${process.env.MSGFLOW_PAGE ? "&only=start&page=" + process.env.MSGFLOW_PAGE : ""}`]
           }
         }
       }
@@ -134,6 +135,13 @@ async function waitFor(desc, fn, timeoutMs) {
     if (result && result.error) throw new Error("driver reported FAIL: " + result.error);
     if (!result || result.popupLoaded !== true) throw new Error("the real popup did not load in the driver");
 
+    if (process.env.MSGFLOW_PAGE) {
+      const dm = /^Reading (\d+) sentences/.exec(result.startStatus || "");
+      if (!dm) throw new Error("details page did not start reading: " + result.startStatus);
+      console.log("POPUP FLOW: Read this page with an online en-US voice, no opt-in, reading", dm[1], "sentences (page " + process.env.MSGFLOW_PAGE + ")");
+      console.log("FIREFOX UNMODIFIED POPUP FLOW (page mode): PASS");
+      return await cleanup();
+    }
     const g = result.gatedStatus || "";
     const sg = result.stateAfterGate || {};
     if (!(g.includes("No English (United States) voice") && sg.state === "idle")) {
