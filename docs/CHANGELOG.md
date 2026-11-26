@@ -1,3 +1,8 @@
+## 1.0.27 (2026-11-26) - Closed details are not read
+
+- Text inside a closed expandable section (the HTML details element) is no longer read: only its summary line is read until the section is opened. This applies to web pages and to uploaded HTML files. An open section is read in full. Text scrolled out of view is still read. User-approved ("reading only what is shown").
+- Tests: new test/details-upload-e2e.js, adversarial extract cases for closed, nested and open details (Chromium and Firefox).
+
 ## 1.0.26 (2026-11-26) - Collapsible player
 
 - The whole player box can be collapsed with an arrow at the end of the transport row (up when expanded, down when collapsed). Collapsed shows only Back, Play, Pause, Forward and the arrow. Playback and Settings state are kept. The collapsed state is per view and is not saved.
