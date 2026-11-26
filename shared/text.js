@@ -30,7 +30,9 @@
 
   // Turn a flat extracted string into readable text, keeping paragraph breaks.
   function normalizeExtractedText(text) {
-    return normalizeWhitespace(dehyphenate(String(text || "")));
+    // Control characters and U+FFFD (binary or broken-encoding debris) are not speakable; \n and \t stay.
+    var t = String(text || "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\uFFFD]/g, "");
+    return normalizeWhitespace(dehyphenate(t));
   }
 
   var ABBREVIATIONS = [

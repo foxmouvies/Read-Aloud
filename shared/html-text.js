@@ -6,7 +6,7 @@
 (function (root) {
   "use strict";
   var DROP = "script,style,noscript,template,iframe,frame,frameset,object,embed,applet,svg,math,canvas,audio,video,head,title,meta,link,base,select,option,datalist,textarea,input,button,form,nav,aside,footer,dialog,[hidden],[aria-hidden='true']";
-  var BLOCK = "address,article,blockquote,br,dd,div,dl,dt,figcaption,figure,h1,h2,h3,h4,h5,h6,hr,li,main,ol,p,pre,section,table,tr,td,th,ul,header,caption";
+  var BLOCK = "address,article,blockquote,br,dd,div,dl,dt,figcaption,figure,h1,h2,h3,h4,h5,h6,hr,li,main,ol,p,pre,section,table,tr,td,th,ul,header,caption,summary,details";
 
   // Whole class tokens only (not substrings): "comment-list" is boilerplate, "commentary" or "shareholder-letter" are not.
   var SKIP_TOKEN = /^(comments?|share|sharing|social|related|promo|sidebar|widget|advert|advertisement|newsletter|subscribe|cookie|breadcrumbs?|pagination|toolbar|popup|modal|banner|menu|nav|navbar|navigation)([-_](list|section|bar|buttons?|links?|posts?|articles?|stories|box|block|container|wrapper|area|form|items?|banner|notice))?$/;
