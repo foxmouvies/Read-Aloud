@@ -1,3 +1,10 @@
+## 1.0.28 (2026-11-26) - Firefox local-file message
+
+- Fix: in Firefox, the popup on a local file:// tab no longer suggests the Chromium "Allow access to file URLs" setting. It says: "This page can't read local files in Firefox. Open the file in the PDF / text reader above instead." Chromium and Brave keep the file-access message. Both now point to the reader button above the message (it said "below").
+- Tests: firefox-msgflow with MSGFLOW_FILE opens a real file:// tab through WebDriver and clicks the real popup button; PASS on Firefox 153.8 ESR and 140.8 ESR.
+- Test environment correction: test/firefox-msgflow.js used the system Firefox ESR 140.8 until this version; it now defaults to the 153.8 ESR binary (like the other Firefox tests). Earlier CHANGELOG lines that say the message-flow suite passed on "ESR 153.8" refer to runs whose binary was not recorded and may have been 140.8. Real versions: ~/browsers firefox-esr 153.8.0esr, system firefox-esr 140.8.0esr.
+- Limit: local file tabs in Firefox remain unsupported (the extension cannot inject into them on 153.8).
+
 ## 1.0.27 (2026-11-26) - Closed details are not read
 
 - Text inside a closed expandable section (the HTML details element) is no longer read: only its summary line is read until the section is opened. This applies to web pages and to uploaded HTML files. An open section is read in full. Text scrolled out of view is still read. User-approved ("reading only what is shown").
