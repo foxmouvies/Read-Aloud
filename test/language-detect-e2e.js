@@ -2,6 +2,7 @@
  * Checks: language picked from the document text (OCR for scans), no other voice
  * substituted when the language has no voice, manual choice never overridden, and
  * the chosen voice is used when present. Synthetic scans; mock speech (queueing only). */
+require("./diag");
 const assert = require("node:assert"), fs = require("node:fs"), os = require("node:os"), path = require("node:path");
 const puppeteer = require("puppeteer-core");
 const EXT_DIR = path.resolve(__dirname, "..");

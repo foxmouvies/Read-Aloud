@@ -3,6 +3,7 @@
  * sequence of spoken utterances with the sentences shown in the text view.
  * Fails if any utterance is spoken more than the text shows it, or order
  * differs. Mock speech: this checks the app's queueing, not audible speech. */
+require("./diag");
 const assert = require("node:assert"), fs = require("node:fs"), os = require("node:os"), path = require("node:path");
 const puppeteer = require("puppeteer-core");
 const EXT_DIR = path.resolve(__dirname, "..");
