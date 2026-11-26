@@ -260,7 +260,7 @@ async function extractPdfText(file, token) {
       if (out.length) { segments.push({ ocr: false, text: out.join("\n") }); out = []; }
       ocrPages++;
       progressEl.textContent = "Recognising text on page " + pageNum + " of " + pdf.numPages + " (scanned page, done on this device)…";
-      cancelOcrBtn.hidden = false;
+      if (token === loadToken) cancelOcrBtn.hidden = false; // a superseded load must not re-show it
       const worker = await getOcrWorker();
       if (token !== loadToken) throw new Error("cancelled");
       const canvas = await pageToCanvas(page);
@@ -424,6 +424,7 @@ function setFileStatus(full, shortText) { progressEl.textContent = shortText; pr
 function updateProgress(st) {
   progressEl.removeAttribute("title");
   if (st.state === "idle" && lastSpeechError) {
+    setCollapsed(false); // the status line is hidden while collapsed: show the error
     progressEl.textContent = "Speech error: " + lastSpeechError +
       (connNote.startsWith("The online voice stopped") ? " (see the voice notice)." : " — your system may have no speech voices installed.");
   } else {
@@ -487,6 +488,7 @@ function applyDetectedLanguage(text, name) {
 async function handleFile(file) {
   if (!file) return;
   const token = ++loadToken;
+  cancelOcrBtn.hidden = true; // a replaced scan load must not leave its Cancel button on screen; OCR shows it again when it starts
   await stopOcr();
   // Drop the previous document before parsing the new file, so Play pressed
   // while the file is still loading can never replay the old document.
@@ -502,6 +504,7 @@ async function handleFile(file) {
     sentences = RAText.splitIntoSentences(text);
     if (!sentences.length) {
       resetDocument();
+      setCollapsed(false);
       progressEl.textContent = "No readable text found in this file.";
       return;
     }
@@ -522,6 +525,7 @@ async function handleFile(file) {
     cancelOcrBtn.hidden = true;
     await stopOcr();
     resetDocument();
+    setCollapsed(false);
     progressEl.textContent = "Could not read that file: " + e.message;
   }
 }
@@ -624,6 +628,8 @@ dropZone.addEventListener("drop", (e) => {
 });
 
 document.getElementById("play").addEventListener("click", () => {
+  // Collapsed player has no Resume button: Play resumes a paused reading from where it stopped.
+  if (controls.classList.contains("collapsed") && engine.getState().state === "paused") { engine.resume(); return; }
   if (!playbackAllowed()) return;
   lastSpeechError = null;
   if (truncatedAt >= 0 && engine.getState().state === "idle") { const k = truncatedAt; truncatedAt = -1; clearMark(); engine.load(sentences, k); }
@@ -635,7 +641,16 @@ function stopPlayback() { lastSpeechError = null; engine.stop(); updateProgress(
 document.getElementById("stop").addEventListener("click", stopPlayback);
 // Compact layout: icon-only transport buttons keep their names for screen readers;
 // the Settings button shows or hides the language/speed/pitch/voice rows.
-document.querySelectorAll(".transport button").forEach((b) => b.setAttribute("aria-label", b.textContent.trim()));
+document.querySelectorAll(".transport button:not(.collapse-toggle)").forEach((b) => b.setAttribute("aria-label", b.textContent.trim()));
+// Collapse the whole player to a slim strip (this page view only, not saved).
+const collapseBtn = document.getElementById("toggle-collapse");
+function setCollapsed(v) {
+  controls.classList.toggle("collapsed", v);
+  collapseBtn.setAttribute("aria-expanded", String(!v));
+  const t = v ? "Expand the player" : "Collapse the player";
+  collapseBtn.title = t; collapseBtn.setAttribute("aria-label", t);
+}
+collapseBtn.addEventListener("click", () => setCollapsed(!controls.classList.contains("collapsed")));
 const settingsBtn = document.getElementById("toggle-settings");
 settingsBtn.addEventListener("click", () => {
   const open = controls.classList.toggle("settings-open");

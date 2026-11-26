@@ -28,6 +28,7 @@ header .hint { margin-bottom: 12px; }
 #controls .row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .transport button { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; }
 .transport button.primary { flex: 2 1 auto; }
+.transport button.collapse-toggle { flex: 0 0 34px; }
 
 button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); cursor: pointer; font-size: 13px; }
 button:hover { background: var(--accent-soft); }
@@ -76,4 +77,13 @@ button.primary:hover { filter: brightness(1.08); background: var(--accent); }
   .sliders { grid-template-columns: 1fr 1fr; }
   #cancel-ocr { width: 100%; }
 }
+/* Collapsed player: only Back, Play, Pause, Forward and the expand arrow (plus Cancel while a scan is recognised). */
+.transport button.collapse-toggle { flex: 0 0 34px; min-width: 34px; padding: 0; }
+.collapse-toggle svg { transition: transform .15s; }
+#controls.collapsed .collapse-toggle svg { transform: rotate(180deg); }
+#controls.collapsed .transport { margin-bottom: 0; }
+#controls.collapsed #resume, #controls.collapsed #stop, #controls.collapsed .sliders, #controls.collapsed #progress-bar, #controls.collapsed .statusline, #controls.collapsed #shortcuts-hint { display: none !important; }
+#controls.collapsed { padding-top: 6px; padding-bottom: 6px; }
+#controls.collapsed #prev { order: 1; } #controls.collapsed #play { order: 2; } #controls.collapsed #pause { order: 3; } #controls.collapsed #next { order: 4; } #controls.collapsed #toggle-collapse { order: 5; }
+#controls.collapsed #cancel-ocr { margin-top: 6px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
