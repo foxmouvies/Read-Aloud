@@ -425,7 +425,7 @@ function updateProgress(st) {
   progressEl.removeAttribute("title");
   if (st.state === "idle" && lastSpeechError) {
     setCollapsed(false); // the status line is hidden while collapsed: show the error
-    progressEl.textContent = "Speech error: " + lastSpeechError +
+    progressEl.textContent = lastSpeechError === "piper-failed" ? "Piper stopped (see the Piper note under Voice)." : "Speech error: " + lastSpeechError +
       (connNote.startsWith("The online voice stopped") ? " (see the voice notice)." : " — your system may have no speech voices installed.");
   } else {
     progressEl.textContent = st.total
@@ -558,10 +558,10 @@ function populateVoices() {
     def.value = "";
     def.textContent = "Default (voices unavailable)";
     voiceSelect.appendChild(def);
-  } else if (!listed.length || choice.savedMissing || choice.needsChoice) {
+  } else if (!listed.length || choice.savedMissing || choice.needsChoice || !choice.voice) {
     const none = document.createElement("option");
     none.value = "";
-    none.textContent = choice.savedMissing ? "Selected voice unavailable" : choice.needsChoice ? "Choose a voice" : "No voices for this language";
+    none.textContent = choice.savedMissing ? "Selected voice unavailable" : (choice.needsChoice || listed.some(({ v }) => v.optIn)) ? "Choose a voice" : "No voices for this language";
     voiceSelect.appendChild(none);
   }
   listed.forEach(({ v, i }) => {
@@ -717,7 +717,7 @@ engine.on("end", updateProgress);
 engine.on("error", (e) => {
   lastSpeechError = e.error || "unknown";
   const cur = voiceChoice().voice;
-  if (cur && cur.localService === false) {
+  if (cur && cur.localService === false && e.error !== "piper-failed") {
     connNote = "The online voice stopped (connection problem or the voice service is unavailable). Position kept: " +
       "check the connection and press Play to continue from this sentence, or choose another voice.";
     populateVoices();
