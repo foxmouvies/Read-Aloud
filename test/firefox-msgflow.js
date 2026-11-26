@@ -12,13 +12,14 @@
 const { execSync, spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const http = require("http");
 
 const EXT_DIR = path.resolve(__dirname, "..");
 const EXT_ID = "readaloud@instinct.local";
 const FF_UUID = "11111111-2222-3333-4444-555555555555";
 const GECKODRIVER = process.env.GECKODRIVER || "geckodriver";
-const FIREFOX = process.env.FIREFOX_BIN || "firefox-esr";
+const FIREFOX = process.env.FIREFOX_BIN || (fs.existsSync(path.join(os.homedir(), "browsers", "firefox-esr", "firefox")) ? path.join(os.homedir(), "browsers", "firefox-esr", "firefox") : "firefox-esr");
 const PORT = 9888;
 const WEB_PORT = 8917;
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -55,6 +56,7 @@ async function waitFor(desc, fn, timeoutMs) {
   throw new Error("TIMEOUT waiting for: " + desc + " (last: " + JSON.stringify(last) + ")");
 }
 
+const sleep_ = (ms) => new Promise((r) => setTimeout(r, ms));
 (async () => {
   // Fixture server.
   const { COMPLEX_HTML } = require("./fixtures/pages.js");
@@ -78,6 +80,7 @@ async function waitFor(desc, fn, timeoutMs) {
   execSync(`cp test/driver/driver.html test/driver/driver.js test/driver/ping.js test/driver/ping2.js /tmp/ra-msgflow-ext/test/driver/`, { cwd: EXT_DIR });
   const man = JSON.parse(fs.readFileSync("/tmp/ra-msgflow-ext/manifest.json", "utf8"));
   man.host_permissions = ["http://127.0.0.1/*"];
+  if (process.env.MSGFLOW_FILE) man.permissions = (man.permissions || []).concat(["tabs"]); // test copy only: lets the driver see the file:// tab URL
   if (process.env.MSGFLOW_PROBES) man.content_scripts = [{ matches: ["http://127.0.0.1/*"], js: ["test/driver/ping.js"] }];
   if (process.env.MSGFLOW_DECLARED) man.content_scripts = [{ matches: ["http://127.0.0.1/*"], js: ["shared/store.js", "shared/text.js", "shared/tts-engine.js", "content/read-page.js"], run_at: "document_idle" }];
   fs.writeFileSync("/tmp/ra-msgflow-ext/manifest.json", JSON.stringify(man, null, 2));
@@ -115,12 +118,18 @@ async function waitFor(desc, fn, timeoutMs) {
           "moz:firefoxOptions": {
             binary: FIREFOX,
             profile: profileB64,
-            args: ["-headless", `moz-extension://${FF_UUID}/test/driver/driver.html?port=${WEB_PORT}${process.env.MSGFLOW_PROBES ? "&probes=1" : ""}${process.env.MSGFLOW_PAGE ? "&only=start&page=" + process.env.MSGFLOW_PAGE : ""}`]
+            args: ["-headless", `moz-extension://${FF_UUID}/test/driver/driver.html?port=${WEB_PORT}${process.env.MSGFLOW_PROBES ? "&probes=1" : ""}${process.env.MSGFLOW_PAGE ? "&only=start&page=" + process.env.MSGFLOW_PAGE : ""}${process.env.MSGFLOW_FILE ? "&only=file&fileurl=" + encodeURIComponent("file://" + process.env.MSGFLOW_FILE) : ""}`]
           }
         }
       }
     });
     SID = sess.value.sessionId;
+    if (process.env.MSGFLOW_FILE) {
+      await sleep_(3000);
+      const nw = await post(`${BASE}/session/${SID}/window/new`, { type: "tab" });
+      await post(`${BASE}/session/${SID}/window`, { handle: nw.value.handle });
+      await post(`${BASE}/session/${SID}/url`, { url: "file://" + process.env.MSGFLOW_FILE });
+    }
     console.log("session:", SID);
 
     // The fixture tab is the active one (the real popup needs it active), so
@@ -135,6 +144,14 @@ async function waitFor(desc, fn, timeoutMs) {
     if (result && result.error) throw new Error("driver reported FAIL: " + result.error);
     if (!result || result.popupLoaded !== true) throw new Error("the real popup did not load in the driver");
 
+    if (process.env.MSGFLOW_FILE) {
+      if (!/^file:/.test(result.tabUrl || "")) throw new Error("fixture tab is not a file:// tab: " + result.tabUrl);
+      if (result.fileStatus !== "This page can't read local files in Firefox. Open the file in the PDF / text reader above instead.") throw new Error("unexpected popup status on a file tab: " + result.fileStatus);
+      console.log("POPUP FILE GUIDANCE (Firefox, real popup, file:// tab): " + result.fileStatus);
+      try { const hs = (await get(`${BASE}/session/${SID}/window/handles`)).value; await post(`${BASE}/session/${SID}/window`, { handle: hs[0] }); const sh = (await get(`${BASE}/session/${SID}/screenshot`)).value; fs.writeFileSync(process.env.MSGFLOW_SHOT || "/downloads/ff-file-popup.png", Buffer.from(sh, "base64")); } catch (e) { console.log("screenshot skipped:", e.message); }
+      console.log("FIREFOX FILE-TAB POPUP MESSAGE: PASS");
+      return await cleanup();
+    }
     if (process.env.MSGFLOW_PAGE) {
       const dm = /^Reading (\d+) sentences/.exec(result.startStatus || "");
       if (!dm) throw new Error("details page did not start reading: " + result.startStatus);
