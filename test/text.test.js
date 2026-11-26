@@ -168,3 +168,15 @@ test("document language detection for the initial voice language", () => {
   const mixed = "The harbour lantern parade begins at seven in the evening. Visitors should arrive early to find a good place along the water. مرحبا بكم في المهرجان";
   assert.equal(T.detectLanguage(mixed, 0.5), "en");
 });
+
+test("wordStartAt snaps a click to the start of its word", () => {
+  const T = require("../shared/text.js");
+  const s = "The quick brown fox.";
+  assert.equal(T.wordStartAt(s, 0), 0);
+  assert.equal(T.wordStartAt(s, 6), 4); // inside "quick"
+  assert.equal(T.wordStartAt(s, 4), 4); // first letter
+  assert.equal(T.wordStartAt(s, 3), 4); // on the space before "quick"
+  assert.equal(T.wordStartAt(s, 16), 16); // "fox." keeps its punctuation
+  assert.equal(T.wordStartAt(s, 20), -1); // after the last word
+  assert.equal(T.wordStartAt("مرحبا بكم", 7), 6);
+});
