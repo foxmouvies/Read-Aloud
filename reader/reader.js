@@ -328,17 +328,66 @@ function renderSentences() {
     span.setAttribute("role", "button");
     span.setAttribute("aria-label", "Read from sentence " + (i + 1));
     span.addEventListener("click", () => {
-      if (playbackAllowed()) engine.play(i); // click any sentence to start reading from it
+      if (playbackAllowed()) playFullFrom(i); // click any sentence to start reading from it
+    });
+    // Right-click a word: read from exactly that word to the end of the document.
+    span.addEventListener("contextmenu", (ev) => {
+      const off = caretOffsetInSpan(span, ev.clientX, ev.clientY);
+      if (off < 0) return; // no caret position available: leave the normal menu alone
+      ev.preventDefault();
+      readFromWord(i, off);
     });
     span.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter" || ev.key === " " || ev.key === "Spacebar") {
         ev.preventDefault();
-        if (playbackAllowed()) engine.play(i);
+        if (playbackAllowed()) playFullFrom(i);
       }
     });
     textView.appendChild(span);
     return span;
   });
+}
+
+/* ---------- Read from the right-clicked word ---------- */
+
+// The queue normally holds every sentence whole. A right-click replaces one
+// entry with the text from the clicked word onward; any other start restores it.
+let truncatedAt = -1;
+
+function playFullFrom(i) {
+  if (truncatedAt >= 0) { truncatedAt = -1; engine.load(sentences, i); }
+  engine.play(i);
+}
+
+// Character offset of the point inside the sentence span, or -1.
+function caretOffsetInSpan(span, x, y) {
+  let node = null, off = 0;
+  if (document.caretPositionFromPoint) {
+    const p = document.caretPositionFromPoint(x, y);
+    if (p) { node = p.offsetNode; off = p.offset; }
+  } else if (document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(x, y);
+    if (r) { node = r.startContainer; off = r.startOffset; }
+  }
+  if (!node || !span.contains(node)) return -1;
+  const r2 = document.createRange();
+  r2.selectNodeContents(span);
+  r2.setEnd(node, off);
+  return r2.toString().length;
+}
+
+function readFromWord(i, off) {
+  if (!playbackAllowed()) return;
+  const start = RAText.wordStartAt(sentences[i], off);
+  // Click after the last word: begin with the next sentence.
+  if (start < 0) { if (i + 1 < sentences.length) playFullFrom(i + 1); return; }
+  lastSpeechError = null;
+  if (start === 0) { playFullFrom(i); return; }
+  const queue = sentences.slice();
+  queue[i] = sentences[i].slice(start);
+  truncatedAt = i;
+  engine.load(queue, i);
+  engine.play(i);
 }
 
 function updateProgress(st) {
@@ -441,6 +490,7 @@ async function handleFile(file) {
 // engine queue, so Play can never replay a previous document while the
 // interface says the new file could not be read (B15).
 function resetDocument() {
+  truncatedAt = -1;
   sentences = [];
   sentenceEls = [];
   currentFileKey = null;
@@ -536,6 +586,7 @@ dropZone.addEventListener("drop", (e) => {
 document.getElementById("play").addEventListener("click", () => {
   if (!playbackAllowed()) return;
   lastSpeechError = null;
+  if (truncatedAt >= 0 && engine.getState().state === "idle") { const k = truncatedAt; truncatedAt = -1; engine.load(sentences, k); }
   engine.play();
 });
 document.getElementById("pause").addEventListener("click", () => engine.pause());
