@@ -103,7 +103,11 @@
         return;
       }
       if (/^file:/.test(tab.url || "")) {
-        setStatus("Local files need 'Allow access to file URLs' in the extension details — or use the PDF / text reader below.", true);
+        if (/Firefox\//.test(navigator.userAgent || "")) {
+          setStatus("This page can't read local files in Firefox. Open the file in the PDF / text reader above instead.", true);
+        } else {
+          setStatus("Local files need 'Allow access to file URLs' in the extension details — or use the PDF / text reader above.", true);
+        }
         return;
       }
       injectReader(tab.id).then(function () {
