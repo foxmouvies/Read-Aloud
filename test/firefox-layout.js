@@ -107,6 +107,11 @@ async function waitFor(desc, fn, timeoutMs) {
       const f0 = await execute("return parseFloat(getComputedStyle(document.getElementById('text-view')).fontSize)");
       await click("#size-up"); const f1 = await execute("return parseFloat(getComputedStyle(document.getElementById('text-view')).fontSize)");
       chk(f1 > f0, `${iw}px: A+ enlarges text ${f0}->${f1}`); await click("#size-down");
+      await click("#toggle-collapse"); await sleep(200);
+      const cs = await execute("const v=[...document.querySelectorAll('#controls button')].filter(b=>b.offsetParent!==null).map(b=>b.id);return {v, h:Math.round(document.getElementById('controls').getBoundingClientRect().height), ov:document.documentElement.scrollWidth>innerWidth, exp:document.getElementById('toggle-collapse').getAttribute('aria-expanded')}");
+      chk(cs.exp === "false" && cs.v.length === 5 && !cs.ov, `${iw}px: collapsed shows ${cs.v.join(",")} h=${cs.h}`);
+      await click("#toggle-collapse"); await sleep(200);
+      chk((await execute("return document.getElementById('toggle-collapse').getAttribute('aria-expanded')")) === "true", `${iw}px: expands again`);
       await shot(`${OUT}/ff-reader-${iw}.png`);
     }
     const errs = await execute("return window.__errs"); chk(errs.length === 0, "page errors: " + errs.length);
