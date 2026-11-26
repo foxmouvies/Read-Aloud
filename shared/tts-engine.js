@@ -77,6 +77,7 @@
       startSeen = false;
       utter.onstart = function () { startSeen = true; };
       synth.speak(utter);
+      if (typeof synth.prefetch === 'function' && sentences[index + 1]) { try { synth.prefetch(sentences[index + 1], utter.voice); } catch (e) {} } /* optional look-ahead hook (Piper) */
       armWatchdog();
       emit("state", getState());
     }
@@ -293,7 +294,7 @@
     lang = lang || "en-US";
     var all = voices;
     var eligible = voices.filter(function (v) { return voiceMatches(v, lang); });
-    var locals = eligible.filter(function (v) { return v.localService !== false; });
+    var locals = eligible.filter(function (v) { return v.localService !== false && !v.optIn; }); // optIn voices (Piper) are never picked automatically
     var onlines = eligible.filter(function (v) { return v.localService === false; });
     var r = { voice: null, needsChoice: false, savedMissing: false, localCount: locals.length,
               onlineCount: onlines.length, noLangVoice: all.length > 0 && eligible.length === 0 };
