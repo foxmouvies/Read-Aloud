@@ -73,7 +73,7 @@ function extId(dir) {
     await reader.screenshot({ path: "/downloads/readaloud/ocr-arabic.png" });
 
     // Mixed text-layer + scanned page
-    await upload("mixed-text-scanned.pdf"); await loaded(/^Loaded mixed-text-scanned/);
+    await reader.evaluate(() => { document.getElementById("progress").textContent = ""; }); await upload("mixed-text-scanned.pdf"); await loaded(/^Loaded /); // name-independent: content asserted below
     txt = await view();
     assert.ok(/reads text aloud/i.test(txt) && txt.toLowerCase().includes("lantern parade"), "mixed PDF has text-layer page and OCR page: " + txt.slice(0, 200));
 

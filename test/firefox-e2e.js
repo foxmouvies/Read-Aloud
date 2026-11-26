@@ -245,7 +245,7 @@ async function waitFor(desc, fn, timeoutMs) {
   // position (file name+size key) instead of starting from sentence 1.
   await post(`${BASE}/session/${SID}/element/${input}/value`, { text: path.join(EXT_DIR, "test", "fixtures", "sample.pdf") });
   const resumed = await waitFor("resume notice", () =>
-    execute("return document.getElementById('progress').textContent").then((t) => /resumed at sentence/.test(t) && t), 15000);
+    execute("return document.getElementById('progress').textContent").then((t) => /resumed at \d+ of \d+/.test(t) && t), 15000);
   console.log("POSITION RESUMED IN FIREFOX:", resumed);
 
   // B1 runtime proof: moving the pitch slider must change the NEXT utterance's
@@ -396,7 +396,7 @@ async function waitFor(desc, fn, timeoutMs) {
     ot = await tv();
     for (const w of ["مهرجان", "الميناء"]) if (!ot.includes(w)) throw new Error("Firefox Arabic OCR missing: " + w + " got: " + ot);
     await shot("/tmp/ff-ocr-arabic.png");
-    await up("mixed-text-scanned.pdf"); await loadedRe("^Loaded mixed-text-scanned");
+    await execute("document.getElementById('progress').textContent=''"); await up("mixed-text-scanned.pdf"); await loadedRe("^Loaded "); // name-independent: content asserted below
     ot = await tv();
     if (!/reads text aloud/i.test(ot) || !ot.toLowerCase().includes("lantern parade")) throw new Error("Firefox mixed PDF wrong: " + ot.slice(0, 200));
     await up("scanned-both.pdf"); await sleep(400); await up("sample.pdf"); await loadedRe("^Loaded sample\\.pdf");
