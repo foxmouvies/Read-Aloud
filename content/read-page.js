@@ -28,7 +28,7 @@
    * weighted by semantic class/id hints. Boilerplate (nav, sidebars,
    * share/related/comment blocks) is excluded from the collected text.
    */
-  var SKIP_TAGS = /^(NAV|ASIDE|FOOTER|HEADER|FORM|BUTTON|SCRIPT|STYLE|NOSCRIPT|IFRAME|SELECT)$/;
+  var SKIP_TAGS = /^(NAV|ASIDE|FOOTER|HEADER|FORM|BUTTON|SCRIPT|STYLE|NOSCRIPT|IFRAME|SELECT|CANVAS|OBJECT|EMBED|VIDEO|AUDIO)$/;
   var SKIP_CLASS = /(share|sharing|social|related|comment|promo|advert|newsletter|subscribe|cookie|breadcrumb|pagination|toolbar|widget|sidebar|menu|nav|popup|modal|banner)/i;
   var GOOD_CLASS = /(article|content|post|entry|main|story|article-body|post-body|body-text|text)/i;
   var BAD_CLASS = /(nav|sidebar|comment|footer|header|promo|related|share|widget|menu|banner|ad)/i;
@@ -110,7 +110,7 @@
         if (c.nodeType === 3) { run.push(c); return; }
         if (c.nodeType !== 1) return;
         if (insideSkipped(c) || !isVisible(c)) return;
-        if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|BR|WBR)$/.test(c.tagName)) { if (c.tagName === "BR") run.push(document.createTextNode(" ")); return; }
+        if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|CANVAS|OBJECT|EMBED|VIDEO|AUDIO|BR|WBR)$/.test(c.tagName)) { if (c.tagName === "BR") run.push(document.createTextNode(" ")); return; }
         if (blockish(c)) { flush(); walk(c); } else run.push(c);
       });
       flush();
@@ -336,10 +336,11 @@
       toast("No voice for " + LANG_LABELS[lang] + " is installed, so the reading language was not changed.");
       return;
     }
+    // The notice comes first: setVoice may restart the current sentence at once.
+    if (usedOnline) toast("Reading in " + LANG_LABELS[lang] + " with an online voice: spoken text is sent to your browser's or system's voice provider.");
     currentLang = lang;
     engine.setLang(lang);
     if (choice.voice) engine.setVoice(choice.voice);
-    if (usedOnline) toast("Reading in " + LANG_LABELS[lang] + " with an online voice: spoken text is sent to your browser's or system's voice provider.");
   }
 
   function removeControlBar() {
