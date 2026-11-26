@@ -59,9 +59,22 @@
     return false;
   }
 
+  // Body of a closed <details> (everything except its first <summary>) is not shown, so it is not read.
+  function insideClosedDetails(el) {
+    for (var n = el; n && n.parentElement; n = n.parentElement) {
+      var p = n.parentElement;
+      if (p.tagName === "DETAILS" && !p.open) {
+        var first = null;
+        for (var c = p.firstElementChild; c; c = c.nextElementSibling) { if (c.tagName === "SUMMARY") { first = c; break; } }
+        if (n !== first) return true;
+      }
+    }
+    return false;
+  }
+
   function isVisible(el) {
     var style = window.getComputedStyle(el);
-    return style.display !== "none" && style.visibility !== "hidden";
+    return style.display !== "none" && style.visibility !== "hidden" && !insideClosedDetails(el);
   }
 
   // Leaf-most text blocks of a container, boilerplate excluded.
@@ -107,7 +120,7 @@
       var run = [];
       function flush() { if (run.length) { var r = makeRun(run); if (r) out.push(r); run = []; } }
       Array.prototype.forEach.call(el.childNodes, function (c) {
-        if (c.nodeType === 3) { run.push(c); return; }
+        if (c.nodeType === 3) { if (!(el.tagName === "DETAILS" && !el.open)) run.push(c); return; } // text directly inside a closed details is its hidden body
         if (c.nodeType !== 1) return;
         if (insideSkipped(c) || !isVisible(c)) return;
         if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|CANVAS|OBJECT|EMBED|VIDEO|AUDIO|BR|WBR)$/.test(c.tagName)) { if (c.tagName === "BR") run.push(document.createTextNode(" ")); return; }
