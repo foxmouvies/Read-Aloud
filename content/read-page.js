@@ -240,10 +240,11 @@
     controlBar.setAttribute("role", "toolbar");
     controlBar.setAttribute("aria-label", "ReadAloud playback controls");
     controlBar.style.cssText = [
-      "position:fixed", "bottom:16px", "right:16px", "z-index:2147483647",
+      "position:fixed", "bottom:max(8px, env(safe-area-inset-bottom))", "right:8px", "z-index:2147483647",
       "display:flex", "gap:6px", "align-items:center",
       "background:#1f2430", "color:#fff", "border-radius:24px",
       "padding:6px 10px", "font:13px/1.4 system-ui,sans-serif",
+      "flex-wrap:wrap", "justify-content:center", "box-sizing:border-box", "max-width:calc(100vw - 16px)",
       "box-shadow:0 2px 10px rgba(0,0,0,.35)"
     ].join(";");
 
@@ -286,15 +287,63 @@
     label.style.cssText = "min-width:56px;text-align:center";
     controlBar.appendChild(label);
 
+    // Visible language choice for page reading: English, Arabic or French. Changing it
+    // switches to a voice for that language and continues from the current sentence;
+    // with no voice for it, nothing changes and a notice says so.
+    var langSel = document.createElement("select");
+    langSel.id = "readaloud-lang";
+    langSel.title = "Reading language";
+    langSel.setAttribute("aria-label", "Reading language");
+    langSel.style.cssText = "background:#3a4356;color:#fff;border:none;border-radius:14px;padding:4px 6px;font:12px system-ui,sans-serif;max-width:120px;cursor:pointer";
+    [["en-US", "English"], ["ar-MA", "العربية"], ["fr-FR", "Français"]].forEach(function (o) {
+      var op = document.createElement("option"); op.value = o[0]; op.textContent = o[1]; langSel.appendChild(op);
+    });
+    langSel.value = currentLang;
+    langSel.addEventListener("change", function () { changeLang(langSel.value, langSel); });
+    controlBar.appendChild(langSel);
+
     controlBar.update = function (st) {
       label.textContent = st.total ? (st.index + 1) + " / " + st.total : "";
       pauseBtn.innerHTML = st.state === "paused" ? ICONS.play : ICONS.pause;
     };
     document.documentElement.appendChild(controlBar);
+    // Room at the very end of the page so the bar never sits on top of the last lines.
+    if (padBefore === null) {
+      padBefore = document.documentElement.style.paddingBottom;
+      document.documentElement.style.paddingBottom = (controlBar.getBoundingClientRect().height + 24) + "px";
+    }
     return controlBar;
   }
 
+  var currentLang = "en-US";
+  var padBefore = null;
+
+  function changeLang(lang, sel) {
+    if (!engine || !LANG_LABELS[lang]) return;
+    var voices = (window.speechSynthesis && speechSynthesis.getVoices ? speechSynthesis.getVoices() : []) || [];
+    var choice = window.RATTS.chooseVoice(voices, null, lang);
+    var usedOnline = false;
+    // The user deliberately picked this language on the bar: when only online
+    // voices exist for it, use the first one of that exact language (never a
+    // voice of another language). Online voices send spoken text to the
+    // browser's or system's voice provider.
+    if (!choice.voice && choice.needsChoice) {
+      var online = voices.filter(function (v) { return v.localService === false && window.RATTS.voiceMatches(v, lang); })[0];
+      if (online) { choice = { voice: online }; usedOnline = true; }
+    }
+    if (!choice.voice && voices.length) {
+      sel.value = currentLang;
+      toast("No voice for " + LANG_LABELS[lang] + " is installed, so the reading language was not changed.");
+      return;
+    }
+    currentLang = lang;
+    engine.setLang(lang);
+    if (choice.voice) engine.setVoice(choice.voice);
+    if (usedOnline) toast("Reading in " + LANG_LABELS[lang] + " with an online voice: spoken text is sent to your browser's or system's voice provider.");
+  }
+
   function removeControlBar() {
+    if (padBefore !== null) { document.documentElement.style.paddingBottom = padBefore; padBefore = null; }
     if (controlBar && controlBar.parentNode) controlBar.parentNode.removeChild(controlBar);
     controlBar = null;
   }
@@ -359,6 +408,8 @@
 
   function startReading(text, rate, cb, requestedLang, fromPoint) {
     var pick = resolveLang(text, requestedLang);
+    currentLang = pick.lang;
+    var existingSel = document.getElementById("readaloud-lang"); if (existingSel) existingSel.value = currentLang;
     var sentences = window.RAText.splitIntoSentences(text);
     if (!sentences.length) { cb({ ok: false, reason: "no-text" }); return; }
     if (!engine) {
@@ -452,8 +503,8 @@
     var t = document.createElement("div");
     t.setAttribute("role", "status");
     t.textContent = msg;
-    t.style.cssText = "position:fixed;bottom:16px;right:16px;z-index:2147483647;background:#1f2430;color:#fff;" +
-      "border-radius:8px;padding:8px 12px;font:13px/1.4 system-ui,sans-serif;max-width:320px;box-shadow:0 2px 10px rgba(0,0,0,.35)";
+    t.style.cssText = "position:fixed;bottom:72px;right:8px;z-index:2147483647;background:#1f2430;color:#fff;box-sizing:border-box;" +
+      "border-radius:8px;padding:8px 12px;font:13px/1.4 system-ui,sans-serif;max-width:min(320px,calc(100vw - 16px));box-shadow:0 2px 10px rgba(0,0,0,.35)";
     document.documentElement.appendChild(t);
     setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 6000);
   }
@@ -504,7 +555,7 @@
       if (!r.ok) toast(r.reason === "no-lang-voice" ? "No voice for " + (r.langLabel || "this language") + ". Installed voice languages: " + (r.installed || "none") + "."
         : "ReadAloud could not start reading here (" + r.reason + ").");
       cb(r);
-    }, msg.lang || "auto", true);
+    }, msg.lang || "en-US", true);
   }
 
   // In an isolated content-script world chrome.runtime is always present;
