@@ -11,7 +11,7 @@
   // Content scripts run in an isolated world: window state is invisible to
   // the page's main world, but the DOM is shared. Mirror spoken text into a
   // hidden element so tests can read it from either world.
-  function logToDom(text) {
+  function logToDom(text, u) {
     var el = document.getElementById("__mock_speech_log");
     if (!el) {
       el = document.createElement("div");
@@ -21,6 +21,7 @@
     }
     var span = document.createElement("span");
     span.textContent = text;
+    if (u) { span.setAttribute("data-lang", u.lang || ""); span.setAttribute("data-voice", (u.voice && u.voice.name) || ""); }
     el.appendChild(span);
   }
   window.SpeechSynthesisUtterance = function (text) {
@@ -36,7 +37,7 @@
     writable: true,
     value: {
       speak: function (u) {
-        spoken.push(u.text); logToDom(u.text);
+        spoken.push(u.text); logToDom(u.text, u);
         // Auto-end mode (test sets the DOM flag before READ_PAGE): each
         // utterance ends almost immediately so playback advances through
         // every chunk and the log collects the full extracted text.
