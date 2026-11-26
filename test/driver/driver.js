@@ -8,7 +8,8 @@
 (async () => {
   document.title = "MSGFLOW STEP boot";
   const port = new URLSearchParams(location.search).get("port") || "8917";
-  const pageUrl = `http://127.0.0.1:${port}/complex.html`;
+  const params = new URLSearchParams(location.search);
+  const pageUrl = `http://127.0.0.1:${port}/${params.get("page") || "complex.html"}`;
   const out = { pageUrl };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   try {
@@ -125,6 +126,7 @@
     out.stateAfterStart = await stateOf();
     click("stop");
     await sleep(300);
+    if (params.get("only") === "start") throw new Error("ONLY_START_DONE"); // details-flow mode: start status and count only
     const pos = await new Promise((res) => chrome.storage.local.get(["positions"], (r) => res(r.positions || {})));
     out.positionKeys = Object.keys(pos);
     // Speech events do not fire in this environment's web-page context (0
@@ -216,8 +218,9 @@
 
     document.title = "MSGFLOW DONE";
   } catch (e) {
+    if (String((e && e.message) || e) === "ONLY_START_DONE") { document.title = "MSGFLOW DONE"; } else {
     out.error = String((e && e.message) || e);
-    document.title = "MSGFLOW FAIL";
+    document.title = "MSGFLOW FAIL"; }
   }
   window.__result = out;
   try {
