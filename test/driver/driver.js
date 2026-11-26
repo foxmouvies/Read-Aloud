@@ -9,12 +9,16 @@
   document.title = "MSGFLOW STEP boot";
   const port = new URLSearchParams(location.search).get("port") || "8917";
   const params = new URLSearchParams(location.search);
-  const pageUrl = `http://127.0.0.1:${port}/${params.get("page") || "complex.html"}`;
+  const pageUrl = params.get("fileurl") || `http://127.0.0.1:${port}/${params.get("page") || "complex.html"}`;
   const out = { pageUrl };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   try {
-    const tab = await chrome.tabs.create({ url: pageUrl, active: true });
-    await new Promise((res, rej) => {
+    let tab;
+    if (params.get("fileurl")) { // Firefox forbids extension tabs.create on file://; the test harness opens that tab through WebDriver
+      for (let i = 0; i < 80 && !tab; i++) { tab = (await chrome.tabs.query({})).find((t) => /^file:/.test(t.url || "")); if (!tab) await sleep(250); }
+      if (!tab) throw new Error("harness never opened the file:// tab");
+    } else tab = await chrome.tabs.create({ url: pageUrl, active: true });
+    if (!params.get("fileurl")) await new Promise((res, rej) => {
       const t = setTimeout(() => rej(new Error("tab load timeout")), 20000);
       const l = (tid, info) => {
         if (tid === tab.id && info.status === "complete") {
@@ -29,6 +33,7 @@
     // This environment exposes 0 voices to web-page contexts (the reader
     // extension page sees the full list), so the gate is exercised against a
     // controlled all-remote voice list stubbed into the tab.
+    if (params.get("only") !== "file") { // file mode: no script injection into the file:// tab (Firefox 153 refuses without host permission)
     out.voiceCount = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => speechSynthesis.getVoices().length }).then((r) => r[0].result);
     out.voicesStubbed = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -43,9 +48,11 @@
         } catch (e) { return "stub-failed: " + e; }
       }
     }).then((r) => r[0].result);
+    }
 
     // Load the REAL popup, unmodified, in an iframe.
     const frame = document.createElement("iframe");
+    if (params.get("only") === "file") { frame.style.cssText = "width:380px;height:560px;border:1px solid #888"; }
     frame.src = chrome.runtime.getURL("popup/popup.html");
     document.body.appendChild(frame);
     await new Promise((res, rej) => {
@@ -68,6 +75,11 @@
       throw new Error("popup status never showed: " + substr + " (last: " + (statusEl.textContent || "") + ")");
     }
     function click(id) { doc.getElementById(id).click(); }
+    if (params.get("only") === "file") { // local-file guidance mode: real popup status on a file:// tab
+      out.tabUrl = tab.url; out.ua = navigator.userAgent;
+      click("read-page"); await sleep(1500); out.fileStatus = statusEl.textContent || "";
+      throw new Error("ONLY_START_DONE");
+    }
     async function stateOf() {
       return await chrome.tabs.sendMessage(tab.id, { type: "STATE" });
     }
@@ -226,5 +238,5 @@
   try {
     await fetch(`http://127.0.0.1:${port}/result`, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(out) });
   } catch (e) { /* harness falls back to title polling */ }
-  document.body.textContent = JSON.stringify(out, null, 2);
+  if (params.get("only") !== "file") document.body.textContent = JSON.stringify(out, null, 2); // file mode keeps the popup visible for a pixel screenshot
 })();
