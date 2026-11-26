@@ -1,0 +1,9 @@
+{
+  "name": "readaloud-piper-worker",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "esbuild": "0.28.2",
+    "onnxruntime-web": "1.18.0"
+  }
+}
