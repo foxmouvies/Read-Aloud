@@ -25,6 +25,15 @@
       st = (el.getAttribute("style") || "").replace(/\s+/g, "").toLowerCase();
       if (st.indexOf("display:none") !== -1 || st.indexOf("visibility:hidden") !== -1) el.setAttribute("hidden", "");
     }
+    // A closed <details> shows only its first <summary>: its body is not visible, so it is not read until opened.
+    var dets = doc.querySelectorAll("details:not([open])");
+    for (i = 0; i < dets.length; i++) {
+      var kept = null, kids = Array.prototype.slice.call(dets[i].childNodes);
+      for (var q = 0; q < kids.length; q++) {
+        if (!kept && kids[q].nodeType === 1 && kids[q].tagName === "SUMMARY") { kept = kids[q]; continue; }
+        if (dets[i].contains(kids[q])) dets[i].removeChild(kids[q]);
+      }
+    }
     // Boilerplate blocks by class name (comments, share bars, sidebars...), as on the live-page route. A block
     // that holds most of the page text is never dropped, so a wrapper with an unlucky class name cannot empty the page.
     var bodyLen = ((doc.body && doc.body.textContent) || "").length || 1;
