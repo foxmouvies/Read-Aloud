@@ -1,3 +1,13 @@
+## 1.0.24 (2026-11-26) - Adversarial QA fixes
+
+- Web pages: text drawn as a fallback inside canvas, object, embed, video and audio elements is no longer read; the visible text around them still is.
+- Uploaded HTML files: the summary line of a details block is read as its own sentence instead of running into the text after it.
+- Pages and files: control characters and the broken-text replacement character are removed before reading, so damaged or binary-looking text no longer produces stray sounds. Arabic marks, combining accents, emoji sequences, zero-width joiners and tabs/newlines are kept.
+- Website bar: when switching language falls back to an online voice, the privacy notice is now shown before the first sentence is spoken with that voice (before, it appeared just after).
+- Tests: new adversarial structure test (24 cases: nested boxes up to 400 deep, mixed layouts, malformed markup, a 2000-paragraph page, media fallbacks, details) in Chromium and Firefox (inert extraction, no audio); website bar test adds a nested-box page, rapid language/pause toggling and a notice-before-speech check for the online voice (mock speech); tab selection in two tests now picks the exact page. Unit tests 104.
+- Known issue, unchanged: the body of a closed details block is still read, in pages and in uploaded files. Text positioned off-screen is also read (screen-reader-only pattern).
+- Limits: mock speech only, no audible-voice check, no physical phone check, Firefox native toolbar click not tested.
+
 ## 1.0.23 (2026-11-26) - Responsive reader, website language selector
 
 - Reader (PDF/text): cleaner layout with a sticky player, progress bar, A- / A+ text size (per view, not saved), automatic dark mode, higher text contrast, and an icon-only transport row on narrow screens (Settings toggle moves to the status row). Active sentence scrolls into view below the sticky bar.
