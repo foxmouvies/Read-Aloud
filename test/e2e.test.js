@@ -45,6 +45,9 @@ function buildTestExtension() {
   for (const item of ["shared", "content", "popup", "reader", "icons", "vendor", "test/fixtures"]) {
     fs.cpSync(path.join(EXT_DIR, item), path.join(dst, item), { recursive: true });
   }
+  // The experimental reader page loads ../piper/shim.js. This base-behaviour test runs without Piper
+  // voices, so it gets an empty stand-in (the real shim would add Piper voices to the list).
+  if (fs.existsSync(path.join(EXT_DIR, "piper"))) { fs.mkdirSync(path.join(dst, "piper"), { recursive: true }); fs.writeFileSync(path.join(dst, "piper", "shim.js"), ""); }
   const manifest = JSON.parse(fs.readFileSync(path.join(EXT_DIR, "manifest.json"), "utf8"));
   manifest.host_permissions = ["http://*/*", "https://*/*"];
   fs.writeFileSync(path.join(dst, "manifest.json"), JSON.stringify(manifest, null, 2));
