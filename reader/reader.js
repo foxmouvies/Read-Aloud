@@ -24,6 +24,8 @@ let sentences = [];
 let sentenceEls = [];
 let lastSpeechError = null;
 let savedVoiceURI = null;
+let autoVoiceURI = null; // default Piper pick (model already downloaded): used for this view only, never saved
+let voiceTouched = false; // the user changed the voice by hand in this view
 let userChoseLang = false; // set when the user picks a language; detection never overrides it
 let voiceLang = "en-US"; // chosen by the user in the Language control; English by default; not stored
 let connNote = ""; // connection message shown in the voice notice
@@ -35,7 +37,7 @@ const voiceNotice = document.getElementById("voice-notice");
 
 function voiceChoice() {
   const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-  return window.RATTS.chooseVoice(voices, savedVoiceURI, voiceLang);
+  return window.RATTS.chooseVoice(voices, savedVoiceURI || autoVoiceURI, voiceLang);
 }
 
 // Online voices are listed automatically with local ones. The browser or OS
@@ -545,9 +547,44 @@ function resetDocument() {
 
 /* ---------- Voices ---------- */
 
+/* First-use recommendation (per view, never saved): outside Edge, offer an on-device opt-in voice (Piper)
+   for the chosen language. Accepting only selects it; the explicit download step still follows. */
+let recoDismissed = false, autoSelecting = false, recoTok = 0;
+function isEdgeBrowser() { return /\bEdg(e|A|iOS)?\//.test(navigator.userAgent || ""); }
+function updateRecommendation(voices) {
+  let box = document.getElementById("voice-reco");
+  if (!box) {
+    box = document.createElement("div"); box.id = "voice-reco"; box.className = "hint"; box.setAttribute("role", "status"); box.hidden = true; box.style.cssText = "flex-wrap:wrap;gap:.4rem .6rem;align-items:center;margin:.4rem 0";
+    voiceNotice.parentNode.insertBefore(box, voiceNotice.nextSibling);
+  }
+  const rec = window.RATTS.recommendVoice(voices, savedVoiceURI, voiceLang, isEdgeBrowser());
+  ++recoTok; box.innerHTML = "";
+  if (!rec.voice || recoDismissed) { box.hidden = true; box.style.display = "none"; return; }
+  const t = document.createElement("span"); t.style.flex = "1 1 100%";
+  t.textContent = "Optional: " + rec.voice.name + " runs on your device, but it needs a download of about 63 MB before it can speak. Nothing downloads until you press Download now." + (voiceChoice().voice ? " Your current voice keeps working meanwhile." : "") + " ";
+  const use = document.createElement("button"); use.type = "button"; use.textContent = "Choose " + rec.voice.name;
+  const no = document.createElement("button"); no.type = "button"; no.textContent = "Not now";
+  use.onclick = () => { const i = voices.indexOf(rec.voice); if (i >= 0) { voiceSelect.value = String(i); voiceSelect.dispatchEvent(new Event("change")); } box.hidden = true; box.style.display = "none"; };
+  no.onclick = () => { recoDismissed = true; box.hidden = true; box.style.display = "none"; };
+  // Already downloaded (verified sizes in this extension's storage): Piper becomes the default voice.
+  // Never saved as a manual choice, never fetches; if it is missing, the offer below is shown instead.
+  const tok = ++recoTok, startVal = voiceSelect.value, synth = window.speechSynthesis;
+  const stored = synth && typeof synth.piperStored === "function" ? synth.piperStored(rec.voice) : Promise.resolve(false);
+  stored.then((ok) => {
+    if (tok !== recoTok) return;
+    if (ok && !savedVoiceURI && !voiceTouched && voiceSelect.value === startVal && voices.indexOf(rec.voice) >= 0) {
+      autoSelecting = true; autoVoiceURI = rec.voice.voiceURI;
+      try { voiceSelect.value = String(voices.indexOf(rec.voice)); engine.setVoice(rec.voice); voiceSelect.dispatchEvent(new Event("change")); } finally { autoSelecting = false; }
+      updateVoiceNotice(voiceChoice());
+    } else if (!ok && !savedVoiceURI) {
+      box.appendChild(t); box.appendChild(use); box.appendChild(no); box.hidden = false; box.style.display = "flex";
+    }
+  });
+}
+
 function populateVoices() {
   const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-  const choice = window.RATTS.chooseVoice(voices, savedVoiceURI, voiceLang);
+  const choice = window.RATTS.chooseVoice(voices, savedVoiceURI || autoVoiceURI, voiceLang);
   voiceSelect.innerHTML = "";
   const listed = voices
     .map((v, i) => ({ v, i }))
@@ -580,7 +617,10 @@ function populateVoices() {
     engine.setVoice(null);
   }
   updateVoiceNotice(choice);
+  updateRecommendation(voices);
   voiceSelect.onchange = () => {
+    if (!autoSelecting) { voiceTouched = true; autoVoiceURI = null; }
+    if (autoSelecting) return; // default pick of an already downloaded voice: not a saved manual choice
     const i = voiceSelect.value === "" ? -1 : parseInt(voiceSelect.value, 10);
     savedVoiceURI = i >= 0 ? voices[i].voiceURI : null;
     engine.setVoice(i >= 0 ? voices[i] : null);
@@ -592,7 +632,7 @@ function populateVoices() {
 
 const langSelect = document.getElementById("language");
 langSelect.addEventListener("change", (e) => {
-  userChoseLang = true; langNote = ""; // manual choice wins over document detection from now on
+  userChoseLang = true; langNote = ""; autoVoiceURI = null; voiceTouched = false; // manual choice wins over document detection from now on
   voiceLang = e.target.value;
   savedVoiceURI = null;
   populateVoices();
