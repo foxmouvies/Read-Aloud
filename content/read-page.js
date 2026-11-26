@@ -80,8 +80,8 @@
     return score;
   }
 
-  function extractPageText() {
-    var selected = getSelectionText();
+  function extractPageText(ignoreSelection) {
+    var selected = ignoreSelection ? "" : getSelectionText();
     if (selected && selected.trim().length > 2) { readBlocks = []; return selected; }
 
     var best = null;
@@ -236,7 +236,7 @@
     return { lang: LANG_LABELS[requested] ? requested : "en-US", detected: false };
   }
 
-  function startReading(text, rate, cb, requestedLang) {
+  function startReading(text, rate, cb, requestedLang, fromPoint) {
     var pick = resolveLang(text, requestedLang);
     var sentences = window.RAText.splitIntoSentences(text);
     if (!sentences.length) { cb({ ok: false, reason: "no-text" }); return; }
@@ -276,7 +276,7 @@
       // Resume where this page was last read (origin+path key, no query).
       // Look the position up BEFORE playing so a resumed read never blips
       // the first sentence before jumping.
-      if (window.RAStore) {
+      if (window.RAStore && !fromPoint) {
         var pageKey = RAStore.pageKey(location.href);
         if (pageKey) {
           RAStore.loadPosition(pageKey, function (savedIdx) {
@@ -324,6 +324,66 @@
     }
   }
 
+
+  // "Read from here": the text from the right-clicked word to the end of the
+  // page text. The click point comes from content/right-click-point.js.
+  function toast(msg) {
+    var t = document.createElement("div");
+    t.setAttribute("role", "status");
+    t.textContent = msg;
+    t.style.cssText = "position:fixed;bottom:16px;right:16px;z-index:2147483647;background:#1f2430;color:#fff;" +
+      "border-radius:8px;padding:8px 12px;font:13px/1.4 system-ui,sans-serif;max-width:320px;box-shadow:0 2px 10px rgba(0,0,0,.35)";
+    document.documentElement.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 6000);
+  }
+
+  function textFromPoint() {
+    var rc = window.__readAloudRC && window.__readAloudRC.get();
+    if (!rc || !rc.node || !rc.node.isConnected) return { error: "no-point" };
+    extractPageText(true); // sets readBlocks (empty when no article container was found)
+    var blocks = readBlocks;
+    if (!blocks.length) {
+      // No article container: every visible text block of the body.
+      blocks = Array.prototype.filter.call(document.body.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre"), function (el) {
+        return !el.querySelector("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre") && !insideSkipped(el) && isVisible(el) && (el.innerText || "").trim();
+      });
+      readBlocks = blocks;
+    }
+    var k = -1;
+    for (var i = 0; i < blocks.length; i++) if (blocks[i].contains(rc.node)) { k = i; break; }
+    if (k < 0) return { error: "not-in-text" };
+    var r = document.createRange();
+    r.selectNodeContents(blocks[k]);
+    r.setEnd(rc.node, rc.offset);
+    var off = r.toString().length;
+    var own = (blocks[k].innerText || "").replace(/^\s+/, "");
+    var start = window.RAText.wordStartAt(own, off);
+    var parts = [];
+    if (start >= 0) parts.push(own.slice(start).trim());
+    for (var j = k + 1; j < blocks.length; j++) {
+      var t = (blocks[j].innerText || "").trim();
+      if (t) parts.push(t);
+    }
+    var text = window.RAText.normalizeExtractedText(parts.join("\n\n"));
+    return text ? { text: text, startsAtWord: start >= 0 } : { error: "not-in-text" };
+  }
+
+  function readFromPoint(msg, cb) {
+    var res = textFromPoint();
+    if (res.error) {
+      toast(res.error === "no-point"
+        ? "Read from here: right-click a word in the page text first."
+        : "Read from here works on the page's article text. This spot is outside it (menus, sidebars, images and text drawn on a canvas are not read).");
+      cb({ ok: false, reason: res.error });
+      return;
+    }
+    startReading(res.text, msg.rate, function (r) {
+      if (!r.ok) toast(r.reason === "no-lang-voice" ? "No voice for " + (r.langLabel || "this language") + ". Installed voice languages: " + (r.installed || "none") + "."
+        : "ReadAloud could not start reading here (" + r.reason + ").");
+      cb(r);
+    }, msg.lang || "auto", true);
+  }
+
   // In an isolated content-script world chrome.runtime is always present;
   // the guard lets tests load this file in a plain page context.
   function handleMessage(msg, sender, sendResponse) {
@@ -343,6 +403,7 @@
         }
         break;
       }
+      case "READ_FROM_POINT": readFromPoint(msg, sendResponse); break;
       case "PAUSE": if (engine) engine.pause(); sendResponse(engine ? engine.getState() : null); break;
       case "RESUME": if (engine) engine.resume(); sendResponse(engine ? engine.getState() : null); break;
       case "STOP":
@@ -370,7 +431,7 @@
   }
   // Extraction hook: invisible to the page (isolated world), used by the
   // cross-browser extraction tests that load this file directly.
-  window.__readAloudExtract = extractPageText;
+  window.__readAloudExtract = function () { return extractPageText(); };
   // Message hook for the cross-browser message-flow driver: routes the same
   // protocol messages through the same handler where a test environment
   // cannot deliver messages to injected-script listeners.
