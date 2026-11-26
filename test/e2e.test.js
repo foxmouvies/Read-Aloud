@@ -320,7 +320,7 @@ test("e2e: extension loads, reader reads a PDF, content script reads a page", as
     // Do exactly what the popup does, driven from the extension page context.
     const realResp = await reader.evaluate(async (url) => {
       const tabs = await chrome.tabs.query({});
-      const tab = tabs.find((tb) => (tb.url || "").includes(url));
+      const tab = [...tabs].reverse().find((tb) => (tb.url || "").includes(url));
       if (!tab) return { ok: false, reason: "tab-not-found" };
       // Mock speech makes this voiceless test box behave like a desktop browser.
       await chrome.scripting.executeScript({
@@ -354,7 +354,7 @@ test("e2e: extension loads, reader reads a PDF, content script reads a page", as
     // Pause, resume and stop through the real message channel.
     const afterPause = await reader.evaluate(async (url) => {
       const tabs = await chrome.tabs.query({});
-      const tab = tabs.find((tb) => (tb.url || "").includes(url));
+      const tab = [...tabs].reverse().find((tb) => (tb.url || "").includes(url));
       await chrome.tabs.sendMessage(tab.id, { type: "PAUSE" });
       const st = await chrome.tabs.sendMessage(tab.id, { type: "STATE" });
       return st.state;
@@ -363,7 +363,7 @@ test("e2e: extension loads, reader reads a PDF, content script reads a page", as
     await article.screenshot({ path: "/tmp/e2e-page-controlbar.png" });
     await reader.evaluate(async (url) => {
       const tabs = await chrome.tabs.query({});
-      const tab = tabs.find((tb) => (tb.url || "").includes(url));
+      const tab = [...tabs].reverse().find((tb) => (tb.url || "").includes(url));
       await chrome.tabs.sendMessage(tab.id, { type: "STOP" });
     }, `127.0.0.1:${port}`);
     await new Promise((r) => setTimeout(r, 300));
@@ -384,7 +384,7 @@ test("e2e: extension loads, reader reads a PDF, content script reads a page", as
       document.documentElement.setAttribute("data-mock-auto-end", "400"));
     const startResp = await reader.evaluate(async (url) => {
       const tabs = await chrome.tabs.query({});
-      const tab = tabs.find((tb) => (tb.url || "").includes(url));
+      const tab = [...tabs].reverse().find((tb) => (tb.url || "").includes(url));
       if (!tab) return { ok: false, reason: "tab-not-found" };
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -398,7 +398,7 @@ test("e2e: extension loads, reader reads a PDF, content script reads a page", as
     await new Promise((r) => setTimeout(r, 2600));
     await reader.evaluate(async (url) => {
       const tabs = await chrome.tabs.query({});
-      const tab = tabs.find((tb) => (tb.url || "").includes(url));
+      const tab = [...tabs].reverse().find((tb) => (tb.url || "").includes(url));
       await chrome.tabs.sendMessage(tab.id, { type: "STOP" });
     }, `resume=1`);
     const savedPositions = await reader.evaluate(() =>
@@ -413,7 +413,7 @@ test("e2e: extension loads, reader reads a PDF, content script reads a page", as
       document.documentElement.setAttribute("data-mock-auto-end", "400"));
     const resumed = await reader.evaluate(async (url) => {
       const tabs = await chrome.tabs.query({});
-      const tab = tabs.find((tb) => (tb.url || "").includes(url));
+      const tab = [...tabs].reverse().find((tb) => (tb.url || "").includes(url));
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         files: ["/test/fixtures/mock-speech.js", "/shared/store.js", "/shared/text.js", "/shared/tts-engine.js", "/content/read-page.js"]
@@ -442,7 +442,7 @@ test("e2e: extension loads, reader reads a PDF, content script reads a page", as
       document.documentElement.setAttribute("data-mock-auto-end", "1"));
     const complexResp = await reader.evaluate(async (url) => {
       const tabs = await chrome.tabs.query({});
-      const tab = tabs.find((tb) => (tb.url || "").includes(url + "/complex"));
+      const tab = [...tabs].reverse().find((tb) => (tb.url || "").includes(url + "/complex"));
       if (!tab) return { ok: false, reason: "tab-not-found" };
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -459,7 +459,7 @@ test("e2e: extension loads, reader reads a PDF, content script reads a page", as
       Array.from(document.querySelectorAll("#__mock_speech_log span")).map((n) => n.textContent).join("\n"));
     await reader.evaluate(async (url) => {
       const tabs = await chrome.tabs.query({});
-      const tab = tabs.find((tb) => (tb.url || "").includes(url + "/complex"));
+      const tab = [...tabs].reverse().find((tb) => (tb.url || "").includes(url + "/complex"));
       await chrome.tabs.sendMessage(tab.id, { type: "STOP" });
     }, `127.0.0.1:${port}`);
     assert.ok(spokenText.includes("Article body marker Sentex"), "article text extracted from complex page");

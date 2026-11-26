@@ -180,3 +180,27 @@ test("wordStartAt snaps a click to the start of its word", () => {
   assert.equal(T.wordStartAt(s, 20), -1); // after the last word
   assert.equal(T.wordStartAt("مرحبا بكم", 7), 6);
 });
+
+test("normalizeExtractedText drops control characters and replacement characters, keeps newlines", () => {
+  const out = RAText.normalizeExtractedText("Hello\u0001 wor\u0000ld\ufffd.\nNext line\u0085 here.");
+  assert.ok(!/[\u0000-\u0008\u007f-\u009f\ufffd]/.test(out), JSON.stringify(out));
+  assert.ok(out.includes("Hello world.") && out.includes("Next line here."), JSON.stringify(out));
+});
+
+test("normalizeExtractedText keeps legitimate multilingual and formatting characters", () => {
+  const samples = [
+    "مَرْحَبًا بِكُمْ في الاختبار.",            // Arabic with harakat
+    "e\u0301cole cre\u0300me bru\u0302le\u0301e.", // combining accents
+    "Famille \u{1F468}\u200D\u{1F469}\u200D\u{1F467} et drapeau \u{1F1F2}\u{1F1E6} et \u{1F44D}\u{1F3FD}.", // ZWJ, flag, skin tone
+    "\u200Fשלום עולם\u200E hello \u202Bmixed\u202C text.", // RTL/LTR marks and embeddings
+    "فارسی می\u200Cرود.",                       // ZWNJ
+    "日本語のテキストです。한국어 텍스트입니다.",
+    "Ligne un\tavec tab.\nLigne deux.",
+    "Zoë’s “quoted” text — fine… ok.",
+  ];
+  for (const s of samples) {
+    const out = RAText.normalizeExtractedText(s);
+    // Direction marks (LRM/RLM) are silent and were already dropped before this change; everything else must survive.
+    assert.equal(out.replace(/\s+/g, " "), s.replace(/[\u200E\u200F]/g, "").replace(/\s+/g, " "), JSON.stringify(s));
+  }
+});
