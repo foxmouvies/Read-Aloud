@@ -1,3 +1,24 @@
+## 1.0.21 (2026-11-26) - Right-click "Read from here"
+
+- Right-click a word and choose "Read from here (ReadAloud)": reading starts at
+  that word and continues to the end of the page text. A click inside a word
+  starts at that word's first letter. Selection is ignored for this action and
+  the saved resume position is skipped.
+- Web pages: reads the article text of the page from the clicked word on. A click
+  outside it (menus, sidebars), text drawn on a canvas, other sites' frames and
+  the browser's built-in PDF viewer are not read; the page shows a short note
+  instead of starting somewhere else. If the clicked text has changed or no
+  right-click was recorded, nothing is read and the page says so.
+- Reader page (PDF, HTML and text files): right-click a word in the text to start
+  at that word and read to the last sentence. A normal click on a sentence still
+  starts it whole.
+- New permissions: contextMenus (the menu item) and access to all websites
+  (top frame only) for a small script that remembers the position of the last
+  right-click. It reads no page text, stores nothing and sends nothing.
+- Language for this action is detected from the text (same detector as before).
+- Checked: real right-click and the menu handler's entry point (not a physical
+  menu click) in Chromium, Brave and Firefox ESR 153.8; reader page in all three.
+
 ## 1.0.20 (2026-11-25) - Language control in the toolbar popup
 
 - The popup now has a Language control (Detect from the text, English (United
