@@ -53,8 +53,10 @@ function extId(dir) {
       await reader.evaluate(() => document.getElementById("play").click());
       await new Promise((r) => setTimeout(r, 600));
       const after = await reader.evaluate(() => ({ speaking: speechSynthesis.speaking, p: document.getElementById("progress").textContent }));
-      const ok = re.test(msg) && (/Loaded/.test(msg) || (st.n === 0 && st.cancelHidden)) && !after.speaking;
+      const real = fs.existsSync(file) && /could not be found/i.test(msg) === false; // a missing fixture must never count as a pass
+      const ok = real && re.test(msg) && (/Loaded/.test(msg) || (st.n === 0 && st.cancelHidden)) && !after.speaking;
       if (!ok) failed++;
+      if (!real) console.log("   (fixture missing or file not found: not a valid pass; build with test/fixtures/build-robustness.py)");
       console.log((ok ? "OK   " : "FAIL ") + label + " -> \"" + msg.slice(0, 90) + "\" sentences=" + st.n + " cancelHidden=" + st.cancelHidden + " speakingAfterPlay=" + after.speaking);
       await reader.evaluate(() => speechSynthesis.cancel());
     }

@@ -98,7 +98,8 @@ async function waitFor(desc, fn, timeoutMs) {
       try { await settle(/Loaded|Could not read|No readable|cancelled/, 110000); msg = await prog(); } catch (e) { msg = "TIMEOUT: " + (await prog()); }
       const st = await state();
       const stale = /reads text aloud/i.test(await execute("return document.getElementById('text-view').textContent"));
-      const ok = re.test(msg) && (/Loaded/.test(msg) || (st.n === 0 && st.cancelHidden && !stale));
+      const real = fs.existsSync(file) && !/could not be found/i.test(msg);
+      const ok = real && re.test(msg) && (/Loaded/.test(msg) || (st.n === 0 && st.cancelHidden && !stale));
       if (!ok) failed++;
       console.log((ok ? "OK   " : "FAIL ") + label + " -> \"" + msg.slice(0, 90) + "\" sentences=" + st.n + " cancelHidden=" + st.cancelHidden + " staleSampleText=" + stale);
     }
