@@ -1,3 +1,25 @@
+## 1.0.22 (2026-11-26) - Page-reading fixes, right-click highlight
+
+- Web pages: text directly inside div, section and table cells is read, once and
+  in page order, also on pages with paragraphs. Without an article container the
+  page is read block by block, skipping nav, sidebars and footers. Hidden text is
+  not read, including on a page that has only hidden text.
+- Class filter matches whole class tokens, not parts of words. If class filtering
+  would remove most of a page with no article/main, it is turned off for that
+  read. Uploaded HTML files drop class-marked boilerplate outside a real
+  article/main (a block with 60% or more of the text is never dropped).
+- A header inside an article (title, byline) and figure captions are read; site
+  headers, navigation and share bars are still skipped.
+- Open shadow roots (web components) are read only when the normal page has under
+  200 characters of text, in page order. No highlight on that text.
+- Right-click inside an embedded frame reads nothing and shows a note.
+- Reader: after a right-click start, the highlight begins at the clicked word.
+- Tests: div-text, shadow-dom, shadow-speech (mock speech), frameset, file:// and
+  clear-data tests are new; e2e tests are standalone scripts (node test/<name>.js).
+- Limits: Firefox local file tabs unsupported; native menu click not tested;
+  OCR accuracy on synthetic degraded scans CER 16.75% / WER 47.59% (no real-scan
+  data); the intermittent Firefox rejection on scan cancel is mitigated, not fixed.
+
 ## 1.0.21 (2026-11-26) - Right-click "Read from here"
 
 - Right-click a word and choose "Read from here (ReadAloud)": reading starts at
