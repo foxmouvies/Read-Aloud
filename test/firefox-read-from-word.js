@@ -106,7 +106,7 @@ const mb = (b) => Math.round(b / 1048576);
     // Real Firefox speech stays on; speak() is wrapped only to record utterance text.
     await execute("window.__sp=[]; const o=SpeechSynthesis.prototype.speak; SpeechSynthesis.prototype.speak=function(u){window.__sp.push(u.text); return o.call(this,u);}; return true");
     const el = await findEl("#file-input");
-    await post(`${BASE}/session/${SID}/element/${el}/value`, { text: fx("sample-readfrom.txt") });
+    await post(`${BASE}/session/${SID}/element/${el}/value`, { text: fx(process.env.RFW_FIXTURE || "sample-readfrom.txt") });
     await waitFor("loaded", () => execute("return /^Loaded/.test(document.getElementById('progress').textContent)").then((v) => v || null), 60000);
     await execute("const v=document.getElementById('voice'); const i=[...v.options].findIndex(o=>o.value!==''); if(i>=0){v.selectedIndex=i; v.dispatchEvent(new Event('change'));} return true");
     const pt = await execute("const span=document.querySelectorAll('#text-view .sentence')[1]; const tn=span.firstChild, at=tn.data.indexOf('pier')+2; const r=document.createRange(); r.setStart(tn,at); r.setEnd(tn,at+1); const b=r.getBoundingClientRect(); return {x:Math.round(b.x+b.width/2), y:Math.round(b.y+b.height/2)}");

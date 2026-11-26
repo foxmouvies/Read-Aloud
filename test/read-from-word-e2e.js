@@ -21,7 +21,7 @@ function extId(dir) { const m = JSON.parse(fs.readFileSync(path.join(dir, "manif
     await page.evaluateOnNewDocument(MOCK + `\nObject.defineProperty(window.speechSynthesis,'getVoices',{value:function(){return ${voices};}});`);
     await page.setViewport({ width: 1000, height: 700 });
     await page.goto(`chrome-extension://${extId(dst)}/reader/reader.html`);
-    await (await page.$("#file-input")).uploadFile(FIX("sample-readfrom.txt"));
+    await (await page.$("#file-input")).uploadFile(FIX(process.env.RFW_FIXTURE || "sample-readfrom.txt"));
     await page.waitForFunction(() => /^Loaded/.test(document.getElementById("progress").textContent), { timeout: 30000 });
     return page;
   }
@@ -43,6 +43,8 @@ function extId(dir) { const m = JSON.parse(fs.readFileSync(path.join(dir, "manif
   chk(sp[0] === "pier near the old lighthouse.", "first utterance starts exactly at the clicked word: " + JSON.stringify(sp[0]));
   chk(JSON.stringify(sp.slice(1)) === JSON.stringify(full.slice(2)), "continues through every remaining sentence to the last word");
   chk(!sp.includes(full[0]), "nothing before the click is read");
+  const sk = await page.evaluate(() => { const e = document.querySelector("#text-view .sentence .skipped"); return e ? { t: e.textContent, whole: e.parentElement.textContent } : null; });
+  chk(sk && sk.t === "Everyone is welcome at the " && sk.whole.trim() === full[1], "highlight: dimmed prefix, sentence text unchanged: " + JSON.stringify(sk));
   await page.close();
 
   // 2) right-click on the first word of a sentence and on a word in the last sentence
@@ -56,7 +58,12 @@ function extId(dir) { const m = JSON.parse(fs.readFileSync(path.join(dir, "manif
   await page.evaluate(() => { window.__mockSpeech.spoken.length = 0; });
   p = await pointOf(page, 1, "Everyone", 3); await page.mouse.click(p.x, p.y, { button: "left" }); await new Promise((r) => setTimeout(r, 800));
   sp = await spokenLog(page); chk(sp[0] === full[1] && JSON.stringify(sp.slice(1)) === JSON.stringify(full.slice(2)), "normal click after a right-click start restores whole sentences");
+  chk(await page.evaluate(() => !document.querySelector("#text-view .skipped")), "dimmed prefix is removed after a normal click");
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT, clip: { x: 0, y: 0, width: 1000, height: 560 } });
   await page.close();
+  { page = await fresh(); p = await pointOf(page, 1, "pier", 2); await page.mouse.click(p.x, p.y, { button: "right" }); await new Promise((r) => setTimeout(r, 700));
+  const bg = await page.evaluate(() => { const r = document.querySelector("#text-view .sentence .rest"), k = document.querySelector("#text-view .sentence .skipped"); const c = (e) => getComputedStyle(e).backgroundColor, cp = (e) => getComputedStyle(e.parentElement).backgroundColor; return r && k ? { restSpan: c(r), skippedSpan: c(k), sentence: cp(r) } : null; });
+  chk(bg && bg.restSpan === "rgb(255, 233, 168)" && bg.sentence === "rgba(0, 0, 0, 0)" && bg.skippedSpan === "rgba(0, 0, 0, 0)", "yellow background covers only the text from the clicked word: " + JSON.stringify(bg));
+  if (process.env.SHOT_MID) await page.screenshot({ path: process.env.SHOT_MID, clip: { x: 0, y: 0, width: 1000, height: 560 } }); await page.close(); }
   console.log(fail ? "READ-FROM-WORD E2E FAIL" : "READ-FROM-WORD E2E PASS"); await browser.close(); process.exit(fail ? 1 : 0);
 })().catch((e) => { console.log("FAIL", e.message); process.exit(1); });
