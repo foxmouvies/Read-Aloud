@@ -317,8 +317,23 @@
     return lines.join("\n");
   }
 
+  // Start of the word at a character offset. A click inside a word gives that
+  // word's first letter; a click on spaces gives the next word. Returns -1
+  // when no word follows the offset in this text.
+  function wordStartAt(text, offset) {
+    var t = String(text);
+    var i = Math.min(Math.max(offset | 0, 0), t.length);
+    if (i < t.length && !/\s/.test(t.charAt(i))) {
+      while (i > 0 && !/\s/.test(t.charAt(i - 1))) i--;
+      return i;
+    }
+    while (i < t.length && /\s/.test(t.charAt(i))) i++;
+    return i < t.length ? i : -1;
+  }
+
   return {
     detectLanguage: detectLanguage,
+    wordStartAt: wordStartAt,
     splitColumns: splitColumns,
     splitOnScriptSwitch: splitOnScriptSwitch,
     fixVisualOrderRtl: fixVisualOrderRtl,
