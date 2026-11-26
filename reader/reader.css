@@ -14,10 +14,14 @@ header h1 svg { stroke: var(--accent); flex: none; }
 .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; max-width: 70ch; }
 header .hint { margin-bottom: 12px; }
 
-#drop-zone { border: 2px dashed var(--line); border-radius: 14px; padding: 28px 16px; text-align: center; background: var(--card); margin-bottom: 14px; transition: border-color .15s, background .15s; }
+#drop-zone { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; border: 1.5px dashed var(--line); border-radius: 10px; padding: 6px 12px; text-align: left; background: var(--card); margin: 0 0 8px; min-height: 0; transition: border-color .15s, background .15s; }
+#drop-zone p { margin: 0; font-size: 13px; }
 #drop-zone:hover, #drop-zone:focus-visible { border-color: var(--accent); outline: none; }
 #drop-zone.dragover { border-color: var(--accent); background: var(--accent-soft); }
-#drop-zone input[type=file] { max-width: 100%; }
+#drop-zone input[type=file] { max-width: 100%; flex: 1 1 180px; min-width: 0; font-size: 13px; }
+.dz-short { display: none; }
+@media (max-width: 480px) { .dz-long { display: none; } .dz-short { display: inline; } #drop-zone { flex-wrap: nowrap; gap: 8px; padding: 5px 10px; } #drop-zone p { white-space: nowrap; } #drop-zone input[type=file] { flex: 1 1 0; font-size: 12px; } }
+.reader-hint { margin: 0 0 10px; }
 
 #controls { position: sticky; top: 0; z-index: 5; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin-bottom: 14px; box-shadow: var(--shadow); }
 #controls[hidden] { display: none; }

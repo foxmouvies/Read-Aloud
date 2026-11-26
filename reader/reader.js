@@ -412,7 +412,17 @@ function readFromWord(i, off) {
   engine.play(i);
 }
 
+// Long file names must not grow the sticky status line: show a shortened name and keep the full text in the tooltip.
+function shortName(name, max = 20) {
+  if (name.length <= max) return name;
+  const m = name.match(/(\.[A-Za-z0-9]{1,5})$/); const ext = m ? m[1] : "";
+  const keep = max - ext.length - 1; const head = Math.ceil(keep * 0.6), tail = keep - head;
+  return name.slice(0, head) + "\u2026" + (tail > 0 ? name.slice(name.length - ext.length - tail, name.length - ext.length) : "") + ext;
+}
+function setFileStatus(full, shortText) { progressEl.textContent = shortText; progressEl.title = full; }
+
 function updateProgress(st) {
+  progressEl.removeAttribute("title");
   if (st.state === "idle" && lastSpeechError) {
     progressEl.textContent = "Speech error: " + lastSpeechError +
       (connNote.startsWith("The online voice stopped") ? " (see the voice notice)." : " — your system may have no speech voices installed.");
@@ -481,7 +491,7 @@ async function handleFile(file) {
   // Drop the previous document before parsing the new file, so Play pressed
   // while the file is still loading can never replay the old document.
   resetDocument();
-  progressEl.textContent = "Loading " + file.name + "…";
+  setFileStatus("Loading " + file.name + "…", "Loading " + shortName(file.name) + "…");
   controls.hidden = false;
   try {
     const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
@@ -502,9 +512,8 @@ async function handleFile(file) {
     const startAt = savedIdx && savedIdx > 0 && savedIdx < sentences.length ? savedIdx : 0;
     engine.load(sentences, startAt);
     updateProgress(engine.getState());
-    progressEl.textContent = startAt > 0
-      ? `Loaded ${file.name}: resumed at sentence ${startAt + 1} of ${sentences.length}. Press Play.`
-      : `Loaded ${file.name}: ${sentences.length} sentences. Press Play.`;
+    const tailMsg = startAt > 0 ? `resumed at ${startAt + 1} of ${sentences.length}. Press Play.` : `${sentences.length} sentences. Press Play.`;
+    setFileStatus(`Loaded ${file.name}: ${tailMsg}`, `Loaded ${shortName(file.name)}: ${tailMsg}`);
   } catch (e) {
     // Superseded or cancelled: the newer load (or the Cancel handler) owns the
     // UI and the shared recognition worker. Tearing it down here could kill
