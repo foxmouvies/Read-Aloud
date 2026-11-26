@@ -28,17 +28,33 @@
    * weighted by semantic class/id hints. Boilerplate (nav, sidebars,
    * share/related/comment blocks) is excluded from the collected text.
    */
-  var SKIP_TAGS = /^(NAV|ASIDE|FOOTER|HEADER|FORM|BUTTON|SCRIPT|STYLE|NOSCRIPT|IFRAME|FIGURE|SELECT)$/;
+  var SKIP_TAGS = /^(NAV|ASIDE|FOOTER|HEADER|FORM|BUTTON|SCRIPT|STYLE|NOSCRIPT|IFRAME|SELECT)$/;
   var SKIP_CLASS = /(share|sharing|social|related|comment|promo|advert|newsletter|subscribe|cookie|breadcrumb|pagination|toolbar|widget|sidebar|menu|nav|popup|modal|banner)/i;
   var GOOD_CLASS = /(article|content|post|entry|main|story|article-body|post-body|body-text|text)/i;
   var BAD_CLASS = /(nav|sidebar|comment|footer|header|promo|related|share|widget|menu|banner|ad)/i;
   var BLOCK_TAGS = /^(P|H1|H2|H3|H4|H5|H6|LI|BLOCKQUOTE|PRE)$/;
 
+  // Whole class tokens only: "comment-list" is boilerplate, "commentary" or "shareholder-letter" are not.
+  var SKIP_TOKEN = /^(comments?|share|sharing|social|related|promo|sidebar|widget|advert|advertisement|newsletter|subscribe|cookie|breadcrumbs?|pagination|toolbar|popup|modal|banner|menu|nav|navbar|navigation)([-_](list|section|bar|buttons?|links?|posts?|articles?|stories|box|block|container|wrapper|area|form|items?|banner|notice))?$/;
+  function isBoilerplateClass(cls) {
+    var toks = String(cls).toLowerCase().split(/\s+/);
+    for (var k = 0; k < toks.length; k++) if (toks[k] && SKIP_TOKEN.test(toks[k])) return true;
+    return false;
+  }
+
+  // A <header> that sits inside an <article>/<main> is the article's own heading block (title, byline), not the
+  // site header; it is read. Its <nav>, buttons and boilerplate-class children are still skipped by their own rules.
+  function isSkipTag(n) {
+    if (!SKIP_TAGS.test(n.tagName)) return false;
+    if (n.tagName === "HEADER" && n.parentElement && n.parentElement.closest && n.parentElement.closest("article, main, [role=main]")) return false;
+    return true;
+  }
+  var noClassSkip = false; // set while re-reading a container whose real content sits inside a boilerplate-named class
   function insideSkipped(el) {
     for (var n = el; n && n !== document.body; n = n.parentElement) {
-      if (SKIP_TAGS.test(n.tagName)) return true;
+      if (isSkipTag(n)) return true;
       var cls = (n.className && n.className.baseVal !== undefined ? n.className.baseVal : n.className) || "";
-      if (typeof cls === "string" && SKIP_CLASS.test(cls)) return true;
+      if (!noClassSkip && typeof cls === "string" && isBoilerplateClass(cls)) return true;
     }
     return false;
   }
@@ -61,6 +77,48 @@
     return blocks;
   }
 
+  // Reading blocks of a container in source order: leaf text elements (p, headings, li...) as before, plus
+  // the text that sits directly inside div/section/td-like elements, as one block per uninterrupted run.
+  // A run is a pseudo-block ({innerText, contains, classList}) because it is not a single element.
+  var LEAF_TAGS = /^(P|H1|H2|H3|H4|H5|H6|LI|BLOCKQUOTE|PRE)$/;
+  var CONTAINER_TAGS = /^(DIV|SECTION|ARTICLE|MAIN|UL|OL|DL|DD|DT|TABLE|TBODY|THEAD|TFOOT|TR|TD|TH|FIGURE|FIGCAPTION|ADDRESS|DETAILS|SUMMARY|CENTER|BODY)$/;
+  var LEAF_SEL = "p, h1, h2, h3, h4, h5, h6, li, blockquote, pre";
+  var BLOCKISH_SEL = LEAF_SEL + ", div, section, article, main, ul, ol, dl, dd, dt, table, tr, td, th, figure, figcaption, address, details, summary, center";
+
+  function makeRun(nodes) {
+    var text = nodes.map(function (n) { return n.nodeType === 3 ? n.data : (n.innerText || n.textContent || ""); }).join("").replace(/\s+/g, " ").trim();
+    if (!text) return null;
+    return {
+      isRun: true, nodes: nodes, innerText: text,
+      contains: function (x) { return nodes.some(function (n) { return n === x || n.contains(x); }); },
+      classList: { add: function () {}, remove: function () {} }
+    };
+  }
+
+  function collectBlockObjs(root) {
+    var out = [];
+    function blockish(el) { return LEAF_TAGS.test(el.tagName) || CONTAINER_TAGS.test(el.tagName) || !!el.querySelector(BLOCKISH_SEL); }
+    function walk(el) {
+      if (insideSkipped(el) || !isVisible(el)) return;
+      if (LEAF_TAGS.test(el.tagName) && !el.querySelector(LEAF_SEL)) {
+        if ((el.innerText || "").trim()) out.push(el);
+        return;
+      }
+      var run = [];
+      function flush() { if (run.length) { var r = makeRun(run); if (r) out.push(r); run = []; } }
+      Array.prototype.forEach.call(el.childNodes, function (c) {
+        if (c.nodeType === 3) { run.push(c); return; }
+        if (c.nodeType !== 1) return;
+        if (insideSkipped(c) || !isVisible(c)) return;
+        if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|BR|WBR)$/.test(c.tagName)) { if (c.tagName === "BR") run.push(document.createTextNode(" ")); return; }
+        if (blockish(c)) { flush(); walk(c); } else run.push(c);
+      });
+      flush();
+    }
+    walk(root);
+    return out;
+  }
+
   function scoreContainer(el) {
     var blocks = collectBlocks(el);
     var len = blocks.join("\n").length;
@@ -80,6 +138,65 @@
     return score;
   }
 
+  // Blocks of a container. Guard: if skipping by class removed 60% or more of the text that tag-based skipping
+  // keeps and nothing kept sits in an article/main element, the content itself carries a boilerplate-looking class, so use the unfiltered-by-class blocks
+  // (script/style/nav/hidden text are still skipped).
+  function blocksWithGuard(root) {
+    var len = function (arr) { return arr.reduce(function (n, b) { return n + (b.innerText || "").replace(/\s+/g, " ").trim().length; }, 0); };
+    var objs = collectBlockObjs(root), kept = len(objs);
+    noClassSkip = true;
+    var all; try { all = collectBlockObjs(root); } finally { noClassSkip = false; }
+    // Content kept inside a real <article>/<main> is trusted: comment threads next to it stay skipped.
+    var semantic = objs.some(function (b) { return b.closest && b.closest("article, main, [role=main]"); });
+    return (!semantic && len(all) > 0 && kept < len(all) * 0.4) ? all : objs;
+  }
+
+  // Text inside open shadow roots (web components). Only used when the normal page walk finds almost nothing.
+  function topHost(el) { for (var n = el; ; ) { var r = n.getRootNode && n.getRootNode(); if (r && r.host) n = r.host; else return n; } }
+  // Document (composed) order: light blocks and shadow blocks sorted by where their element / outermost host sits.
+  function anchorOf(b) { return b.anchor || (b.isRun ? b.nodes[0] : b); }
+  function inDocumentOrder(blocks) {
+    var tagged = blocks.map(function (b, i) { return { b: b, i: i, a: anchorOf(b) }; });
+    tagged.sort(function (x, y) {
+      if (x.a !== y.a && x.a && y.a && x.a.compareDocumentPosition) {
+        var c = x.a.compareDocumentPosition(y.a);
+        if (c & 4) return -1;      // y follows x
+        if (c & 2) return 1;       // y precedes x
+      }
+      return x.i - y.i;
+    });
+    return tagged.map(function (t) { return t.b; });
+  }
+  function shadowBlockObjs() {
+    var out = [];
+    // Visible and not boilerplate all the way up, crossing shadow boundaries (host classes and tags count too).
+    function usable(node) {
+      for (var n = node; n; n = n.parentElement || (n.getRootNode && n.getRootNode().host) || null) {
+        if (n === document.body || n === document.documentElement) return true;
+        if (isSkipTag(n) || !isVisible(n)) return false;
+        var cls = (n.className && n.className.baseVal !== undefined ? n.className.baseVal : n.className) || "";
+        if (typeof cls === "string" && isBoilerplateClass(cls)) return false;
+      }
+      return true;
+    }
+    function visit(root) {
+      Array.prototype.forEach.call(root.querySelectorAll("*"), function (el) {
+        if (!el.shadowRoot) return;
+        var sr = el.shadowRoot;
+        if (usable(el)) {
+          Array.prototype.forEach.call(sr.querySelectorAll(LEAF_SEL), function (b) {
+            if (b.querySelector(LEAF_SEL) || !usable(b)) return;
+            var t = (b.innerText || b.textContent || "").trim();
+            if (t) out.push({ anchor: topHost(el), isRun: true, nodes: [b], innerText: t.replace(/\s+/g, " "), contains: function (x) { return b === x || b.contains(x); }, classList: { add: function () {}, remove: function () {} } });
+          });
+        }
+        visit(sr);
+      });
+    }
+    if (document.body) visit(document.body);
+    return out;
+  }
+
   function extractPageText(ignoreSelection) {
     var selected = ignoreSelection ? "" : getSelectionText();
     if (selected && selected.trim().length > 2) { readBlocks = []; return selected; }
@@ -94,21 +211,25 @@
       }
     );
     if (best) {
-      readBlocks = [];
-      var blocks = collectBlocks(best);
-      // keep the elements too: re-walk to pair text with its element
-      var els = [];
-      var all = best.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre");
-      Array.prototype.forEach.call(all, function (el) {
-        if (el.querySelector("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre")) return;
-        if (insideSkipped(el) || !isVisible(el)) return;
-        if ((el.innerText || "").trim()) els.push(el);
-      });
-      readBlocks = els;
-      return window.RAText.normalizeExtractedText(blocks.join("\n\n"));
+      var objs = blocksWithGuard(best);
+      readBlocks = objs;
+      return window.RAText.normalizeExtractedText(objs.map(function (b) { return (b.innerText || "").trim(); }).join("\n\n"));
+    }
+    if (document.body) {
+      var bobjs = blocksWithGuard(document.body);
+      var btext = window.RAText.normalizeExtractedText(bobjs.map(function (b) { return (b.innerText || "").trim(); }).join("\n\n"));
+      if (btext && btext.length >= 200) { readBlocks = bobjs; return btext; }
+      var sb0 = shadowBlockObjs();
+      if (sb0.length) { var comb = inDocumentOrder(bobjs.concat(sb0)); readBlocks = comb; return window.RAText.normalizeExtractedText(comb.map(function (b) { return (b.innerText || "").trim(); }).join("\n\n")); }
+      if (btext) { readBlocks = bobjs; return btext; }
+    }
+    var sb = shadowBlockObjs();
+    if (sb.length) {
+      readBlocks = sb;
+      return window.RAText.normalizeExtractedText(sb.map(function (b) { return b.innerText; }).join("\n\n"));
     }
     readBlocks = [];
-    var text = document.body ? document.body.innerText || document.body.textContent || "" : "";
+    var text = document.body ? document.body.innerText || "" : ""; // innerText only: textContent would include hidden text
     return window.RAText.normalizeExtractedText(text);
   }
 
@@ -343,19 +464,16 @@
     extractPageText(true); // sets readBlocks (empty when no article container was found)
     var blocks = readBlocks;
     if (!blocks.length) {
-      // No article container: every visible text block of the body.
-      blocks = Array.prototype.filter.call(document.body.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre"), function (el) {
-        return !el.querySelector("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre") && !insideSkipped(el) && isVisible(el) && (el.innerText || "").trim();
-      });
+      blocks = document.body ? collectBlockObjs(document.body) : [];
       readBlocks = blocks;
     }
     var k = -1;
     for (var i = 0; i < blocks.length; i++) if (blocks[i].contains(rc.node)) { k = i; break; }
     if (k < 0) return { error: "not-in-text" };
     var r = document.createRange();
-    r.selectNodeContents(blocks[k]);
+    if (blocks[k].isRun) r.setStartBefore(blocks[k].nodes[0]); else r.selectNodeContents(blocks[k]);
     r.setEnd(rc.node, rc.offset);
-    var off = r.toString().length;
+    var off = blocks[k].isRun ? r.toString().replace(/\s+/g, " ").replace(/^\s+/, "").length : r.toString().length;
     var own = (blocks[k].innerText || "").replace(/^\s+/, "");
     var start = window.RAText.wordStartAt(own, off);
     var parts = [];
@@ -369,6 +487,11 @@
   }
 
   function readFromPoint(msg, cb) {
+    if (msg && msg.inFrame) {
+      toast("Read from here does not work inside an embedded frame. Right-click the page text outside it.");
+      cb({ ok: false, reason: "in-frame" });
+      return;
+    }
     var res = textFromPoint();
     if (res.error) {
       toast(res.error === "no-point"
