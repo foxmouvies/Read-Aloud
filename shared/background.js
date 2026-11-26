@@ -17,23 +17,25 @@
   chrome.runtime.onInstalled.addListener(addMenu);
   if (chrome.runtime.onStartup) chrome.runtime.onStartup.addListener(addMenu);
 
-  function readFromHere(tab) {
+  function readFromHere(tab, info) {
+    var inFrame = !!(info && typeof info.frameId === "number" && info.frameId > 0); // right-click was inside an embedded frame
     if (!tab || tab.id == null) return Promise.resolve();
     return chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES }).then(function () {
       // Runs in the same isolated world as the injected reader, so the
       // reader's handler is called directly (no runtime message needed).
       return chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: function () {
+        args: [inFrame],
+        func: function (inFrameArg) {
           return typeof window.__readAloudMessage === "function"
-            ? window.__readAloudMessage({ type: "READ_FROM_POINT", lang: "auto" }) : { ok: false, reason: "not-ready" };
+            ? window.__readAloudMessage({ type: "READ_FROM_POINT", lang: "auto", inFrame: inFrameArg }) : { ok: false, reason: "not-ready" };
         }
       });
     }).catch(function () { /* restricted page: nothing to read */ });
   }
 
   chrome.contextMenus.onClicked.addListener(function (info, tab) {
-    if (info.menuItemId === ID) readFromHere(tab);
+    if (info.menuItemId === ID) readFromHere(tab, info);
   });
   self.__raReadFromHere = readFromHere; // entry point for the automated tests
 })();
