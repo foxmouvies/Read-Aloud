@@ -1,3 +1,13 @@
+## 1.0.23 (2026-11-26) - Responsive reader, website language selector
+
+- Reader (PDF/text): cleaner layout with a sticky player, progress bar, A- / A+ text size (per view, not saved), automatic dark mode, higher text contrast, and an icon-only transport row on narrow screens (Settings toggle moves to the status row). Active sentence scrolls into view below the sticky bar.
+- Popup: sectioned layout. The language default is English (United States); "Detect from the text" is still available.
+- Web pages: the floating bar now has a visible language selector (English, Arabic Morocco, French). English is the default for reading from the toolbar and for right-click "Read from here". Switching language continues from the current sentence.
+- Online voices: when you pick a language on the bar and the browser lists only online voices for it (Firefox reports all its speech voices as online), the first voice of that exact language is used and a notice says spoken text is sent to the browser's or system's voice provider. A voice of another language is never used; if no voice of that language exists the change is refused with a notice. No new permissions.
+- The bar fits phone-width screens (wraps, 8px margin) and the page gets temporary bottom padding while it is shown, removed on Stop.
+- Tests: new layout, scroll-sticky and website-bar tests (Chromium, mock speech) and Firefox layout and website-bar tests (real espeak-ng, dispatch assertions only). PDF robustness tests now use genuine invalid, blank, encrypted and truncated fixtures and fail if a fixture is missing.
+- Limits: no audible-voice check and no physical phone check; Firefox headless cannot go below 500px wide (390/320px checked in Chromium only); Firefox native toolbar click not tested; website auto-follow scrolling not included; Arabic (Morocco) has no matching voice in the test Firefox.
+
 ## 1.0.22 (2026-11-26) - Page-reading fixes, right-click highlight
 
 - Web pages: text directly inside div, section and table cells is read, once and
