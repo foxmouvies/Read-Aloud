@@ -1,0 +1,4 @@
+ReadAloud 1.0.29 EXPERIMENTAL Piper build. Not a production release.
+Piper voices (Alba en-GB, Siwis fr-FR, about 63 MB each) are opt-in: nothing downloads until you choose Download now in the reader. Files come from huggingface.co and are then kept in the extension's browser storage (removable in the reader; the browser may clear it, so it can be downloaded again). If Piper fails, the reader stops and says so; it does not switch to an online voice.
+Known caveats: audible output not verified by ear; not tested on a phone, Brave or Firefox Android; watchdog time limits are unmeasured on slow devices.
+This package is distributed as a GPLv3 combined work because espeak-ng (GPL) is linked into piper_phonemize.wasm. Corresponding source, build commands and license texts: third-party/ (THIRD-PARTY.md, SOURCE/, LICENSES/).
