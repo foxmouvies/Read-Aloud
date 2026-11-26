@@ -70,6 +70,9 @@ button:hover { filter: brightness(0.96); }
 #text-view .sentence { cursor: pointer; border-radius: 3px; padding: 0 1px; }
 #text-view .sentence:hover { background: #eef3fe; }
 #text-view .sentence.speaking { background: #ffe9a8; }
+#text-view .sentence.speaking.partial { background: transparent; }
+#text-view .sentence.speaking.partial .rest { background: #ffe9a8; }
+#text-view .sentence .skipped { color: #6b7280; opacity: .65; }
 #text-view .sentence.done { color: #8a93a3; }
 
 .hint {

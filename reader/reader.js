@@ -353,9 +353,30 @@ function renderSentences() {
 // The queue normally holds every sentence whole. A right-click replaces one
 // entry with the text from the clicked word onward; any other start restores it.
 let truncatedAt = -1;
+let markedEl = null, markedText = "";
+
+// Dim the part of the clicked sentence that is skipped, so the highlight starts at the clicked word.
+function markFrom(i, start) {
+  clearMark();
+  const el = sentenceEls[i];
+  if (!el) return;
+  markedEl = el; markedText = el.textContent;
+  el.textContent = "";
+  const skipped = document.createElement("span");
+  skipped.className = "skipped"; skipped.textContent = markedText.slice(0, start);
+  el.appendChild(skipped);
+  const rest = document.createElement("span");
+  rest.className = "rest"; rest.textContent = markedText.slice(start);
+  el.appendChild(rest);
+  el.classList.add("partial");
+}
+function clearMark() {
+  if (markedEl) { markedEl.textContent = markedText; markedEl.classList.remove("partial"); }
+  markedEl = null; markedText = "";
+}
 
 function playFullFrom(i) {
-  if (truncatedAt >= 0) { truncatedAt = -1; engine.load(sentences, i); }
+  if (truncatedAt >= 0) { truncatedAt = -1; clearMark(); engine.load(sentences, i); }
   engine.play(i);
 }
 
@@ -386,6 +407,7 @@ function readFromWord(i, off) {
   const queue = sentences.slice();
   queue[i] = sentences[i].slice(start);
   truncatedAt = i;
+  markFrom(i, start);
   engine.load(queue, i);
   engine.play(i);
 }
@@ -490,7 +512,7 @@ async function handleFile(file) {
 // engine queue, so Play can never replay a previous document while the
 // interface says the new file could not be read (B15).
 function resetDocument() {
-  truncatedAt = -1;
+  truncatedAt = -1; markedEl = null;
   sentences = [];
   sentenceEls = [];
   currentFileKey = null;
@@ -586,7 +608,7 @@ dropZone.addEventListener("drop", (e) => {
 document.getElementById("play").addEventListener("click", () => {
   if (!playbackAllowed()) return;
   lastSpeechError = null;
-  if (truncatedAt >= 0 && engine.getState().state === "idle") { const k = truncatedAt; truncatedAt = -1; engine.load(sentences, k); }
+  if (truncatedAt >= 0 && engine.getState().state === "idle") { const k = truncatedAt; truncatedAt = -1; clearMark(); engine.load(sentences, k); }
   engine.play();
 });
 document.getElementById("pause").addEventListener("click", () => engine.pause());
