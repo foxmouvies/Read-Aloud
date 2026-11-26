@@ -116,6 +116,14 @@ async function waitFor(desc, fn, timeoutMs) {
     await settle(/Loaded/, 100000); const txtD = await execute("return document.getElementById('text-view').textContent");
     const okD = /Loaded/.test(await prog()) && txtD.length > 50; if (!okD) failed++;
     s = await report("D replacement scan completed (text chars " + txtD.length + ")"); if (s.live !== 0 || s.created !== s.term) failed++;
+    if (process.env.CANCEL_LOOPS) { // optional stress: cancel at varied delays after Cancel appears; counts page errors
+      const delays = [0, 5, 20, 60, 120, 200, 300, 450]; let hit = 0;
+      for (let i = 0; i < Number(process.env.CANCEL_LOOPS); i++) {
+        await upload(FIXD(i % 2 ? "scanned-en.pdf" : "scanned-both.pdf")); await cancelVis(); await sleep(delays[i % delays.length]); if (await execute("const b=document.getElementById('cancel-ocr'); if(!b.hidden){b.click(); return true} return false")) hit++; await sleep(700);
+      }
+      console.log("E cancels delivered while the scan was still running: " + hit + " of " + process.env.CANCEL_LOOPS);
+      await upload(FIXD("sample.pdf")); await settle(/Loaded/); s = await report("E after " + process.env.CANCEL_LOOPS + " timed cancels"); if (s.live !== 0 || s.created !== s.term) failed++;
+    }
     console.log("lifetimes (ms since start): " + JSON.stringify(await execute("return window.__ev")).slice(0, 900));
     const errs = await execute("return window.__errs"); console.log("page errors: " + errs.length + (errs.length ? JSON.stringify(errs.slice(0, 3)) : ""));
     if (errs.length) failed++;
